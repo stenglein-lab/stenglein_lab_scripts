@@ -1,0 +1,170 @@
+#!/usr/bin/perl 
+
+use Getopt::Long;
+use strict;
+
+my $usage = <<USAGE;
+
+ This script extracts a random subset of a set of fasta records
+ reads from a file or stdin and writes to stdount
+
+ It also has the ability to only output a random subsequence of 
+ a particular length from the random subset of records
+
+ The script traverses the input once, so it won't output any record 
+ more than once.
+
+  Mark Stenglein Dec, 2010
+
+
+ usage: extract_random_fasta_subset [-n denominator] [-c target_count] [-s subseq_size] fasta_file
+
+ -n denominator    approximately one out of every n sequences will 
+                   be output.  default = 100 
+
+ -c target_count   the denominator will be set so that approximately 
+                   target_count sequences will be output.  Note that
+                   this option takes longer because the number of
+                   fasta records has to be determined ahead of time.
+                   Also, this won't work for piped or redirected stdin
+                   (must specify a file).
+
+ -s subseq_size    from each randomly selected record to be output, only
+                   output a randomly selected sub-sequence of specified length
+
+  
+
+  Examples:
+
+  extract_random_fasta_subset -n 1000 my_fasta.fasta         # will output a random subset of ~1/1000 records
+
+  extract_random_fasta_subset -c 10000 my_fasta.fasta        # will output a random subset of ~10000 records
+ 
+  extract_random_fasta_subset -n 10 -s 100 my_fasta.fasta    # will output a random subsequence of length 100
+                                                             # from a random subset of ~1/10 records
+
+USAGE
+
+my $print_usage = 0;
+my $n = 100;
+my $target_count=undef;
+my $subseq_size=undef;
+my $fasta_file = undef;
+my $fasta_fh = undef;
+
+# if no stdin or no file specified, don't stall
+if ( -t STDIN and not @ARGV ) { print $usage and exit; }
+
+GetOptions ("n=i" => \$n, "c=i" => \$target_count, "s=i" => \$subseq_size, "h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit; }
+
+# user specified fasta file
+if ($fasta_file = shift)
+{
+   open ($fasta_fh, "<", $fasta_file) 
+     or print $usage and die ("error, couldn't open file: $fasta_file\n");
+}
+else
+{
+   # no file, read from stdin
+   # open stdin
+   open ($fasta_fh, "<-") 
+     or print $usage and die ("error, couldn't open stdin\n");
+}
+
+# shooting for a subset of a particular # of records
+# to do this, need to count the # of fasta records ahead of time
+# this uses grep to count the number of fasta headers in the file 
+# so could be slow for a big fasta file
+if (defined $target_count)
+{
+   if (!defined $fasta_file)
+   {
+      print $usage; 
+      die ("error: if specifying target_count, must pass fasta filename on command line\n");
+   }
+   my $grep_cmd ="grep -c \\\> $fasta_file";
+   my $fasta_count = `$grep_cmd`;
+   $n = $fasta_count / $target_count;
+}
+
+if ($n <= 0)
+{
+   warn ("invalid denominator: $n\n");
+   die ($usage);
+}
+
+my $print_next_lines = 0;
+my $seq = undef;
+
+# iterate through fasta input
+while (<$fasta_fh>)
+{
+	# header line
+   if (/^>/)
+   {
+      if ($print_next_lines == 1)
+      {
+         # if we are only going to output a subsequence of this record
+         if ($seq and $subseq_size)
+         {
+            # decide what random subsequence to output
+            my $seq_length = length $seq;
+            if ($seq_length <= $subseq_size)
+            {
+               print "$seq\n";
+            }
+            else
+            {
+               my $rand_start = int(rand($seq_length - $subseq_size));
+               my $subseq = substr($seq, $rand_start, $subseq_size);
+               print "$subseq\n";
+            }
+         }
+         $print_next_lines = 0;
+         $seq = undef;
+      }
+
+		# decide whether to print the record
+      # this simulates a one in $n chance of occuring
+		# rand() is not perfectly random but close enough for this purpose
+      my $random_integer = int(rand($n));
+      if ($random_integer == 1)
+      {
+         $print_next_lines = 1;
+         print "$_";
+      }
+   }
+   elsif (($print_next_lines) and (!$subseq_size))
+   {
+		# print out the whole sequence
+      print "$_";
+   }
+   elsif (($print_next_lines) and ($subseq_size))
+   {
+		# accumulate sequence for multi-line fasta
+      $seq .= $_;
+   }
+}
+
+# do this again in case last record was going to be output
+# and we are only outputting subsequences
+if ($print_next_lines == 1)
+{
+   if ($seq and $subseq_size)
+   {
+      # we are only going to output a subsequence of this record
+      my $seq_length = length $seq;
+      if ($seq_length <= $subseq_size)
+      {
+         print "$seq\n";
+      }
+      else
+      {
+         my $rand_start = int(rand($seq_length - $subseq_size));
+         my $subseq = substr($seq, $rand_start, $subseq_size);
+         print "$subseq\n";
+      }
+   }
+}
