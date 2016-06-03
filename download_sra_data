@@ -1,0 +1,139 @@
+#!/bin/bash
+
+# Usage info:
+usage()
+{
+cat << EOF
+ 
+ This script downloads a dataset or multiple datasets from the NCBI Short Read Archive (SRA)
+
+ The datasets are downloaded as .sra format files.
+
+ This script accepts SRA Run accessions (SRRXXXXXX) as arguments and can accept a file with
+ multiple accessions, one per line.
+
+ See also: http://www.ncbi.nlm.nih.gov/books/NBK158899/
+
+
+ Mark Stenglein June 3, 2016
+
+
+ Dependencies: 
+  (1) internet access 
+  (2) wget
+
+
+ Usage:
+
+  download_sra_data <SRR_acc_1> [ ... <SRR_acc_N>] [-h] [-f filename]
+
+  -h           print this message
+
+  -f filename  specify a filename with multiple SRA run accessions, one per line
+
+  SRR_acc_N    SRA run accessions of dataset to download, of form SRRXXXXXXX
+
+EOF
+}
+
+# if no arguments, don't stall
+# if [[ -t 0 ]] && [[ $# -eq 0 ]]
+if [[ $# -eq 0 ]]
+then
+  usage
+  exit
+fi
+
+# initialize some variables
+accession_filename=""
+accessions=()
+
+# parse command line options
+while getopts “hf:” OPTION
+do
+     case $OPTION in
+         h)
+             usage
+             exit 1
+             ;;
+         f)
+             # download a bunch of SRA datasets, listed in a file
+             accession_filename=$OPTARG
+             ;;
+         ?)
+             usage
+             exit
+             ;;
+     esac
+done
+
+# shift off used up args
+shift $((OPTIND-1))
+
+# if a file w/ accession #s, read them into an array
+if [[ !  -z  $accession_filename  ]] 
+then
+   while read -r line
+   do
+		# ignore comment lines
+		[[ "$line" =~ ^#.*$ ]] && continue
+	   accessions+=("$line")
+   done < "$accession_filename"
+fi
+
+# other accessions = rest of arguments
+accessions+=("$@")
+
+
+for sra_acc in "${accessions[@]}"
+do
+	# does this look like a legit SRA run accession?
+	if [[ $sra_acc  =~ "SRR"[0-9]+ ]] 
+	then
+		# construct URL
+
+      # Typical SRA URL: anonftp@ftp.ncbi.nlm.nih.gov:/sra/sra-instant/reads/ByRun/sra/SRR/SRR304/SRR304976/SRR304976.sra
+      base_url="ftp.ncbi.nlm.nih.gov:/sra/sra-instant/reads/ByRun/sra/"
+
+	   sra_acc_3=${sra_acc:0:3}
+	   sra_acc_6=${sra_acc:0:6}
+	   full_url="${base_url}${sra_acc_3}/${sra_acc_6}/${sra_acc}/${sra_acc}.sra"
+
+	   echo "wget $full_url"
+
+		# actually get the data using wget
+	   wget $full_url
+
+	else
+
+		# invalid run accession format
+	   echo "warning: $sra_acc does not appear to be an SRA run accession (SRRXXXXXXX), skipping" 
+
+	fi
+done 
+
+
+
+# From: http://www.ncbi.nlm.nih.gov/books/NBK158899/
+# 
+# Determining the location of SRA data files for automated or scripted downloads.
+# 
+# Beginning with a list of desired SRA data sets (e.g., a list of SRA Run accessions, “SRRs”), the exact download location for that data file can be determined as follows:
+# 
+# wget/FTP root: ftp://ftp-trace.ncbi.nih.gov
+# 
+# ascp root: vog.hin.mln.ibcn.ptf@ptfnona:
+# 
+# Remainder of path:
+# 
+# /sra/sra-instant/reads/ByRun/sra/{SRR|ERR|DRR}/<first 6 characters of accession>/<accession>/<accession>.sra
+# 
+# Where
+# 
+# {SRR|ERR|DRR} should be either ‘SRR’, ‘ERR’, or ‘DRR’ and should match the prefix of the target .sra file
+# 
+# Examples:
+# 
+# Downloading SRR304976 by wget or FTP:
+# 
+# wget ftp://ftp-trace.ncbi.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR304/SRR304976/SRR304976.sra
