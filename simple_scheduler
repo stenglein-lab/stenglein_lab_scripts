@@ -1,0 +1,163 @@
+#!/bin/bash
+
+# a simple scheduler script to run a command repeatedly in parallel or series
+#
+# I'm sure this could be more sophisticated
+#
+# Mark Stenglein   May 10, 2011
+# Last update:     Feb 12, 2016
+
+# default number of cores 
+num_cores=12
+wait_for_file=0
+run_in_series=0
+arg_command=0
+
+
+usage=$(cat <<'END_USAGE'
+ 
+ This script runs a command repeatedly, passing one-by-one a series of 
+ arguments to the command. 
+
+ The can be done in parallel (default) or series (-s option)
+
+ When run in parallel, The commands will be run up to a specified limit of concurrent 
+ instances (default: run 12 instances in parellel – control with -a option). New instances
+ will be spawned as other instances finish.
+
+ You can use this, for example, to run the same command on a series of files
+ or to run a command repeatedly with a series of different command line arguments 
+
+
+ Mark Stenglein May 10, 2011
+
+
+  Usage: simple_scheduler [-h] [-s] [-a num_concurrent_processes] <command>|[-e 'command'] <file1> <file2> ... 
+ 
+   -h        print this help 
+ 
+   -s        run commands in series instead of parallel (equivalent to -a 1)
+
+   -a        number of processes to run concurrently (default: 12) 
+
+
+   To specify the command to run, use one of the 2 formats below
+
+
+   command       the specified command will be run repeatedly with subsequent 
+	              command line args passed one by one as arguments to that commend
+
+         OR 
+
+   -e "command" the entire quoted command string will be run with 
+	             subsequent args passed one by one in addition 
+	             (useful for passing arguments to a command to run) 
+
+
+   Examples:
+
+	  simple_scheduler -a 6 gunzip *.gz                                 # will run 6 gunzip processes in parallel on all the files ending in .gz in the current directory
+
+	  simple_scheduler -a 12 ./my_fastq_processing_script  *.fastq      # will run 6 gunzip processes in parallel on all the files ending in .gz in the current directory
+
+END_USAGE
+)
+
+
+if [ $# -eq 0 ]
+then
+   echo -e "$usage\n"
+   exit
+fi
+
+
+while getopts "hswa:e:" optionName; do
+case "$optionName" in
+h) echo "$usage\n"; exit;;
+s) run_in_series=1;;
+w) wait_for_file=1;;
+a) num_cores="$OPTARG"; 
+   # shift; shift
+   if [[ ! $num_cores =~ ^[0-9]+$ ]]
+   then
+       echo "error: invalid number of cores: $num_cores - expected argument"; echo "$usage\n"; exit;
+   fi
+   ;;
+e) command="$OPTARG"; arg_command=1;;
+[?]) echo "error: invalid argument"; echo "$usage\n"; exit;;
+esac
+done
+
+shift $((OPTIND-1))
+
+if [[ $num_cores -le 0 ]]
+then
+   # don't allow 0 or fewer cores - that is silly
+   num_cores=1;
+fi
+
+# who am I?
+my_uid=`id -u`
+
+# command is first argument, files on which to run it are rest
+if [[ $arg_command -eq 0 ]]
+then
+   command=$1
+   shift
+fi
+### echo "simple_scheduler: going to to run command: $command on files $*" 
+
+# This is a mechanism to modify the number of cores
+# on the fly by sending a SIGUSR1 or SIGUSR2 signal
+# to the running process
+# e.g. kill -s SIGUSR1 9983 will increment the num by 1
+trap "(( num_cores++ ))" SIGUSR1
+trap "(( num_cores-- ))" SIGUSR2
+
+for f in "$@"
+do
+
+	# if we've spawned any processes, 
+	if [[ ${#spawned_pids[@]} -gt 0 ]]
+	then
+
+	   # join the pids that this process has spawned to a '-e' -separated list for passing to grep
+	   spawned_pids_list=$(printf -- " -e %s" "${spawned_pids[@]}")
+	   spawned_pids_list_arg=${spawned_pids_list:1}
+
+	   # check to see if the number of actually running spanwed processes exceeds the concurrent limit
+      while [ $(pgrep -P $$ | grep -x $spawned_pids_list_arg | wc -l) -ge $num_cores ]
+      do
+         # echo waiting to spawn 
+         sleep 1
+      done
+   fi
+
+   # echo "$command $f"
+   if [ ! -e $f -a "$wait_for_file" -eq "1" ]
+   then
+      # -t 10800 means that this will try for 1 week (10800 min) 
+      # to run the command and then will stop trying
+      run_once_file_exists -t 10800 $f $command $f &
+		spawned_pids=("${spawned_pids[@]}" "$!")
+   else
+      $command $f & 
+		# $! is pid of last run process
+		spawned_pids=("${spawned_pids[@]}" "$!")
+   fi
+
+   # an option to not run in parallel but in series
+   if [ "$run_in_series" -eq "1" ]
+   then
+      wait
+   else
+      sleep 1
+   fi
+
+done
+
+
+# this wait command will cause this script to not exit
+# until all the background processes are finished
+wait
+
