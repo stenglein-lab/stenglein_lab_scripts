@@ -58,7 +58,7 @@ usage=$(cat <<'END_USAGE'
 
 	  simple_scheduler -a 6 gunzip *.gz                                 # will run 6 gunzip processes in parallel on all the files ending in .gz in the current directory
 
-	  simple_scheduler -a 12 ./my_fastq_processing_script  *.fastq      # will run 6 gunzip processes in parallel on all the files ending in .gz in the current directory
+	  simple_scheduler -a 12 ./my_fastq_processing_script  *.fastq      # will run 6 gunzip processes in parallel on all the files ending in .fastq in the current directory
 
 END_USAGE
 )
