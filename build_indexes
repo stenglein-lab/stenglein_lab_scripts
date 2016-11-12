@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# create several indexes from nr and nt databases
+# Mark Stenglein 8.6.2013  
+
+# build database indexes
+echo "*************************************************"
+echo "*** building indexes from nr and nt databases ***"
+echo "*************************************************"
+
+# first, create fasta files from blast dbs
+echo " convert nt database to fasta "
+blastdbcmd -entry all -db nt -out nt.fasta -target_only
+echo "convert nr database to fasta "
+blastdbcmd -entry all -dbtype prot -db nr -out nr.fasta -target_only
+
+# build new indices in a separate directory
+
+today=`date +%Y_%m_%d`
+index_dir=indexes_${today}
+mkdir $index_dir
+
+mv nr.fasta $index_dir
+mv nt.fasta $index_dir
+
+cd $index_dir
+
+echo "creating rapsearch index of nr database"
+date
+prerapsearch -d nr.fasta -n nr_rap_index
+
+echo "creating diamond index of nr database"
+date
+diamond makedb --in nr.fasta -d nr
+
+echo "creating GSNAP index of nt database"
+date
+gmap_build -D . -d nt nt.fasta
+
+## echo "creating HISAT/Bowtie2 index of nt database"
+## date
+## hisat-build nt.fasta nt
+
+# copy files back to main directory
+# NOTE that this might interfere w/ running 
+# rapsearch, gsnapl, or hisat processes
+
+echo "moving indexes"
+date
+
+# fasta files
+mv nr.fasta ..
+mv nt.fasta ..
+# rapsearch nr index
+mv nr_rap_index* ..
+# diamond nr index
+mv nr.dmnd ..
+# gsnap nt index
+# delete the old one
+rm -rf ../nt  
+# move the new one into place
+mv -f nt ..
+## # hisat nt index
+## mv nt*.bt2l ..
+## mv nt.sources ..
+
+
+echo "done rebuilding indexes"
+date

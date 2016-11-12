@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# download and unpack the NCBI nr and nt databases
+# Mark Stenglein 8.6.2013  
+
+# create a list of nr and nt files
+# assume the dbs will go up to 99 sub-files - may have to up this in the future
+# if change is req'd will have to make sure numbering is ok, w/ regards to 0 padding...
+
+# have to do this cd command in case this script is run as a cron job
+# in which case it would normally excute w/ home dir as pwd
+cd /home/databases/nr_nt
+
+echo "********************************************************"
+echo "*** downloading and updating nr/nt files and indexes ***"
+echo "********************************************************"
+date
+
+num_subfiles=99 
+
+subfile_nums=(`seq -s " " -w 0 $num_subfiles`)
+
+nt_files=()
+nr_files=()
+
+subfile=1
+for subfile in ${subfile_nums[@]}
+do
+   nt_file="nt.${subfile}.tar.gz"
+   nr_file="nr.${subfile}.tar.gz"
+   nt_files+=($nt_file)
+   nr_files+=($nr_file)
+   # echo $nt_file
+   # echo $nr_file
+done
+
+echo "starting download and unpacking of files"
+date
+
+echo "fetching nr files from NCBI FTP server"
+for f in ${nr_files[@]}
+do
+   wget -q -N ftp://ftp.ncbi.nih.gov/blast/db/$f
+done
+
+echo "unpacking nr files"
+for f in `ls nr.??.tar.gz`
+do
+   tar xfvz $f
+done
+
+echo "fetching nt files from NCBI FTP server"
+for f in ${nt_files[@]}
+do
+   wget -q -N ftp://ftp.ncbi.nih.gov/blast/db/$f
+done
+
+echo "unpacking nt files"
+for f in `ls nt.??.tar.gz`
+do
+   tar xfzv $f
+done
+
+echo "finished downloading and unpacking files"
+date 
+
+date >> nr_nt_updated_dates.txt
+
+# remove tar.gz files
+# echo "deleting .tar.gz files"
+# rm -f nt*.tar.gz
+# rm -f nr*.tar.gz
+
+# this script builds indexes from the nr and nt dbs
+echo "**************************"
+echo "*** rebuilding indexes ***"
+echo "**************************"
+date
+./build_indexes

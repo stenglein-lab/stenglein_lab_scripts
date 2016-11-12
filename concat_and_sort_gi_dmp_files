@@ -1,0 +1,73 @@
+#!/usr/bin/perl
+
+my $f1 = shift or die($!);
+my $f2 = shift or die($!);
+
+open ($fh1, "<", $f1) or die($!);
+open ($fh2, "<", $f2) or die($!);
+
+
+$f1_line = <$fh1>;
+if (!defined $f1_line) 
+{
+   die($!);
+}
+$f1_line =~ /(\d+)\t/;
+$f1_gi = $1;
+
+$f2_line = <$fh2>;
+if (!defined $f2_line) 
+{
+   die($!);
+}
+$f2_line =~ /(\d+)\t/;
+$f2_gi = $1;
+
+$f1_lines_left = 1;
+$f2_lines_left = 1;
+
+while ($f1_lines_left and $f2_lines_left)
+{
+   if ($f1_gi < $f2_gi)
+   {
+      print "$f1_line";
+      $f1_line = <$fh1>;
+      if (!defined $f1_line)
+      {
+         $f1_lines_left = 0;
+      }
+      $f1_line =~ /(\d+)\t/;
+      $f1_gi = $1;
+   }
+   else
+   {
+      print "$f2_line";
+      $f2_line = <$fh2>;
+      if (!defined $f2_line)
+      {
+         $f2_lines_left = 0;
+      }
+      $f2_line =~ /(\d+)\t/;
+      $f2_gi = $1;
+   }
+}
+
+$remaining_fh = undef;
+if ($f1_lines_left)
+{
+   print $f1_line;
+   $remaining_fh = $fh1;
+}
+elsif ($f2_lines_left)
+{
+   print $f2_line;
+   $remaining_fh = $fh2;
+}
+else
+{
+   die ($!);
+}
+while ($line = <$remaining_fh>)
+{
+   print "$line";
+}

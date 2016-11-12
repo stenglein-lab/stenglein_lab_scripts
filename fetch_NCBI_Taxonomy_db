@@ -1,0 +1,48 @@
+#!/bin/bash
+  
+# this script downloads the NCBI Taxonomy database into the 
+# current working directory 
+
+# do this in case being called from a cron job
+cd /home/databases/NCBI_Taxonomy
+
+ftp_url='ftp://ftp.ncbi.nih.gov/pub/taxonomy/'
+file_list=( gi_taxid.readme   gi_taxid_nucl.dmp.gz gi_taxid_nucl_diff.dmp.gz gi_taxid_prot.dmp.gz gi_taxid_prot_diff.dmp.gz taxcat.tar.gz taxcat.tar.gz.md5 taxcat_readme.txt taxdump.tar.gz taxdump.tar.gz.md5 taxdump_readme.txt)
+gzip_file_list=( gi_taxid_nucl.dmp.gz gi_taxid_nucl_diff.dmp.gz gi_taxid_prot.dmp.gz gi_taxid_prot_diff.dmp.gz taxcat.tar.gz taxdump.tar.gz )
+ungzip_file_list=( gi_taxid_nucl.dmp gi_taxid_nucl_diff.dmp gi_taxid_prot.dmp gi_taxid_prot_diff.dmp taxcat.tar taxdump.tar )
+tar_file_list=( taxcat.tar taxdump.tar )
+
+for f in ${file_list[@]}
+do
+   echo downloading ${ftp_url}${f}
+   wget ${ftp_url}${f}
+done
+
+# cleanup old unzipped files
+for f in ${ungzip_file_list[@]}
+do
+   echo removing ${f}
+   rm -f ${f}
+done
+
+# unzip gzipped files
+for f in ${gzip_file_list[@]}
+do
+   echo unzipping ${f}
+   gunzip ${f}
+done
+
+# unzip newly downloaded files
+for f in ${tar_file_list[@]}
+do
+   echo unpacking ${f}
+   tar xvf ${f}
+done
+
+# create concatenated GI/TAXID map file w/ nt and prot GIs
+concat_script=./concat_and_sort_gi_dmp_files
+$concat_script gi_taxid_nucl.dmp gi_taxid_prot.dmp > gi_taxid.dmp
+
+
+# now update MYSQL db
+./create_gi_taxid_mysql_table

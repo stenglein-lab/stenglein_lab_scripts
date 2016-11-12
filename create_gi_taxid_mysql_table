@@ -1,0 +1,19 @@
+#!/bin/bash
+
+mysql -u NCBI_Taxonomy -pNCBI_Taxonomy < create_gi_taxid_mysql_table.sql
+
+# 
+# note: to get this to work, I had to edit the file  /etc/apparmor.d/local/usr.sbin.mysqld
+#
+# I added the following lines to that file (without being commented):
+#
+# /home/databases/NCBI_Taxonomy/ r,
+# /home/databases/NCBI_Taxonomy/* r,
+#
+# I then had to run:
+# sudo /etc/init.d/apparmor reload
+# 
+# see: http://stackoverflow.com/questions/2783313/how-can-i-get-around-mysql-errcode-13-with-select-into-outfile
+#
+# Note: MDS 7/30/2015
+#
