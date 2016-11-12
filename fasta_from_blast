@@ -1,0 +1,199 @@
+#!/usr/bin/perl
+
+# given a blast file, output the records from the
+# fasta or fastq file used as input to the blast
+# guess the fasta/q filename based on the blast results filename
+#
+# Mark Stenglein Feb 21, 2012
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  Given a blast file, output the records from the
+  fasta or fastq file used as input to the blast.
+
+  If -f not specified then guess the fasta/q filename 
+  based on the blast results filename.
+
+usage: $0 [-h] [-e max_evalue] [-m max_mm] [-l min_len] [-r] [-s] [-f fasta/q_file] <blast_m8_file>";
+
+   -h                 print this message. 
+
+   -e max_evalue      records with e-value more than this will be ignored
+
+   -m max_mismatches  records with more than this many mismatches in alignment
+                      will be ignored.
+
+   -l min_aln_length  records with an alignment length less than this will
+                      be ignored.
+
+   -r                 reverse of normal behavior - output all those records
+                      without a hit at or below the specified e-value 
+
+   -s                 Retreive subjects of blast hits from fasta file instead of 
+	                   queries of blast hits, which is default behavior
+
+   -f fastx_file      the fasta/q file that was used as blast query
+                      if not specified, the name will be inferred from 
+                      the name of the blast results file
+USAGE
+
+#TODO - make this configurable
+my $split_ids = 1;
+
+my $print_usage = 0;
+my $max_evalue = undef;
+my $fasta_file = undef;
+my $output_misses = 0;
+my $min_aln_length = undef;
+my $max_mismatches = undef;
+my $retreive_subjects = 0;
+
+if (scalar @ARGV == 0) { warn $usage and die; }
+
+GetOptions ( "h" => \$print_usage,
+             "e=s" => \$max_evalue, 
+             "m=i" => \$max_mismatches, 
+             "l=i" => \$min_aln_length, 
+             "r" => \$output_misses, 
+             "s" => \$retreive_subjects, 
+             "f=s" => \$fasta_file);
+
+if ($print_usage) { print $usage and exit;}
+
+while (my $blast_file = shift)
+{
+   open (my $blast_fh, "<", $blast_file) or print "error: couldn't open blast results file: $blast_file\n$usage" and exit;
+
+   if (!$fasta_file)
+   {
+      # try to figure out fasta/q filename
+      $blast_file =~ /(.*\.(fasta|fastq|fq|fa))(?!.*\.(fasta|fastq|fq|fa))/;
+      $fasta_file = $1;
+   }
+   open (my $fasta_fh, "<", $fasta_file) or print "error: couldn't open fasta/q file: $fasta_file\n$usage" and exit;
+
+   my @fields = ();
+   my %ids = ();
+   # parse blast file, keeping track of query IDs
+   warn "parsing blast file: $blast_file\n";
+   while (<$blast_fh>)
+   {
+      chomp;
+      @fields = split "\t";
+      # if (scalar @fields != 12) { print "error: unexpected format for blast file.  Line: $_\n" and exit; }
+      if (scalar @fields != 12) { warn "error: unexpected format for blast file.  Line: $_\n"; }
+      my $id = $fields[0];
+
+		# in this case, retreive based on _subject_ of blast hit, not query
+		if ($retreive_subjects)
+		{
+		   $id = $fields[1];
+		}
+
+		# filters
+      if ($max_evalue and ($fields[10] > $max_evalue))
+      {
+         next;
+      }
+      if (defined $max_mismatches and ($fields[4] > $max_mismatches))
+      {
+         next;
+      }
+      if (defined $min_aln_length and ($fields[3] < $min_aln_length))
+      {
+         next;
+      }
+      $ids{$id} = 1;
+      # print "$id\n";
+   }
+
+
+   # read fasta/fastq file and output appropriate records
+
+   my $printing_lines = 0;
+   warn "parsing fasta/fastq file: $fasta_file\n";
+
+   my $seq = undef;
+   my $header = undef;
+   my $fastq_file = 0;
+   my $line_count = 0;
+   my $first_line = 1;
+
+   while (<$fasta_fh>)
+   {
+      chomp;
+      $line_count += 1;
+
+      # determine if fasta or fastq
+      if ($first_line)
+      {
+         $first_line = 0;
+         if (/^@/)
+         {
+            $fastq_file = 1;
+         }
+         elsif (!/^>/)
+         {
+            warn "\nerror - was expecting fasta or fastq input. First line = $_\n\n";
+            print $usage and exit;
+         }
+      }
+
+      if ($line_count == 1)
+      {
+         # parse header and determine whether to output record or not
+         if (!$fastq_file and (!/^>/))
+         {
+            warn "\nerror - was expecting 2-line fasta input. Line = $_\n\n";
+            print $usage and exit;
+         }
+         elsif ($fastq_file and (!/^@/))
+         {
+            warn "\nerror - was expecting 4-line fastq input. Line = $_\n\n";
+            print $usage and exit;
+         }
+   
+         if (/^[>@](.*)/)
+         {
+            $header = $1;
+         }
+
+         $printing_lines = 0;
+         my $id = $header;
+	      if ($split_ids)
+	      {
+	         $id =~ /(\S+)\s/;
+	         $id = $1;
+	      }
+
+         # warn "$id\n";
+         if ($ids{$id}) 
+         {
+            if (!$output_misses)
+            {
+               $printing_lines = 1;
+            }
+         }
+         elsif ($output_misses)
+         {
+            $printing_lines = 1;
+         }
+      }
+      elsif ($line_count == 2 and !$fastq_file)
+      {
+         $line_count = 0;
+      }
+      elsif ($line_count == 4 and $fastq_file)
+      {
+         $line_count = 0;
+      }
+
+      if ($printing_lines)
+      {
+        print "$_\n";
+      }
+   }
+}

@@ -1,0 +1,135 @@
+#!/usr/bin/perl
+
+# This script combines two possibly redundant fasta files
+# 
+# It assumes the two files contain possibly overlapping
+# sets of records.  It outputs the OR set of both file 
+# records.  
+#
+# Mark Stenglein October 18, 2012
+
+# TODO: make it so that you can do the intersection or the union or the exclusive or
+# TODO: make it so that it works for fastq files too
+
+use strict;
+
+my $usage = "merge_fasta_files <fasta_file_1> <fasta_file_2>\n";
+
+my $r1_filename = shift or print ($usage) and die ($!);
+my $r2_filename = shift or print ($usage) and die ($!);
+
+open (my $r1_fh, "<", $r1_filename) or print ($usage) and die ($!);
+open (my $r2_fh, "<", $r2_filename) or print ($usage) and die ($!);
+open (my $out_fh, ">-") or die ("error, couldn't open stdout\n");
+
+my %headers = ();
+
+# first, store set of all headers in a hash
+while (<$r1_fh>)
+{
+   if (/^>/)
+   {
+      chomp;
+      $headers{$_} = 1 ;
+   }
+}
+while (<$r2_fh>)
+{
+   if (/^>/)
+   {
+      chomp;
+      $headers{$_} = 1 ;
+   }
+}
+close ($r1_fh);
+close ($r2_fh);
+
+# reads a fasta record from a fh (passed as arg)
+# returns the header, seq
+# as the elements of a list returned
+# 
+# This assumes that sequence is only on one line
+sub read_fasta_record
+{
+   # first get the header.  
+   my $fh = $_[0];
+   my $header = <$fh>;
+   if (!defined $header) { return undef; } # no more records
+   # make sure it's a fasta header
+   if (!($header =~ /^>/))
+   { 
+      print "error reading fasta file.  Was expecting a fasta header, instead read this:\n$header\n";
+      exit;
+   }
+   chomp $header;
+
+   my $seq = undef;
+   my $previous_line_file_position = tell($fh);
+   while (my $this_line = <$fh>)
+   {
+      # keep track of file position in case multi-line fasta 
+      if ($this_line =~ /^>/)
+      {
+         # fasta header. rewind to before header
+         seek($fh, $previous_line_file_position, 0);
+         last;
+      }
+      $seq .= $this_line;
+      $previous_line_file_position = tell($fh);
+   } 
+   chomp $seq;
+
+   if (!$seq) 
+   { 
+      print "error reading fasta file.  No sequence for header $header \n";
+      exit;
+   }
+
+   return ($header, $seq);
+}
+
+# reads a fastq record from a fh (passed as arg)
+# returns the header, seq, qual_header, and $qual 
+# as the elements of a list returned
+# 
+# This assumes 4-line fastq format
+sub read_fastq_record
+{
+   my $fh = $_[0];
+   my $header = <$fh>;
+   if (!defined $header) { return undef; } # no more records
+   chomp $header;
+   my $seq = <$fh>;
+   chomp $seq;
+   my $qual_header = <$fh>;
+   chomp $qual_header;
+   my $qual = <$fh>;
+   chomp $qual;
+   return ($header, $seq, $qual_header, $qual);
+}
+
+my $header = undef;
+my $seq = undef;
+my $qual_header = undef;
+my $qual = undef;
+
+
+open (my $r1_fh, "<", $r1_filename) or print ($usage) and die ($!);
+open (my $r2_fh, "<", $r2_filename) or print ($usage) and die ($!);
+
+my @fhs = ($r1_fh, $r2_fh);
+
+foreach my $fh (@fhs)
+{
+   # RECORD: while (($header, $seq, $qual_header, $qual) = read_fastq_record($fh))
+   RECORD: while (($header, $seq) = read_fasta_record($fh))
+   {
+      last if (!defined($header));
+      if (defined $headers{$header})
+      {
+         delete $headers{$header};
+         # print "$header\n$seq\n$qual_header\n$qual\n";
+         print "$header\n$seq\n";
+      }
+   }
+}

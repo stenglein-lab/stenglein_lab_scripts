@@ -1,0 +1,82 @@
+#!/usr/bin/perl
+
+# 
+# Triage sequences in a fasta file based on fraction
+# of sequence that is masked by DUST filtering
+# (See NCBI dustmasker program information)
+#
+# Mark Stenglein, August 6, 2011
+#
+
+use lzw;
+use strict;
+
+my $usage = "fasta_dust_filter cutoff fasta_file \n\tcutoff - sequences with greater than the cutoff fraction of bases masked will be discarded (0-1)\n"; 
+
+my $cutoff = shift or die ($usage);
+my $fasta_filename = shift or die ($usage);
+
+my $in = undef;
+open ($in, "<", $fasta_filename) or die ($usage);
+
+my $fasta_filename_core = $fasta_filename;
+if (!($fasta_filename_core =~ /\.fa/))
+{
+   die("error: expecting .fa fasta file\n");
+}
+$fasta_filename_core =~ s/\.fa//;
+
+my $out_above_name = $fasta_filename_core.'_dust_above_'.$cutoff.'.fa';
+my $out_below_name = $fasta_filename_core.'_dust_below_'.$cutoff.'.fa';
+
+my $out_above = undef;
+my $out_below = undef;
+
+open ($out_above, ">", $out_above_name) or die ($usage);
+open ($out_below, ">", $out_below_name) or die ($usage);
+
+my $header = undef;
+my $seq = undef;
+
+while (<$in>)
+{
+   chomp;
+   if (/^>/)
+   {
+      # output previous record
+      if (defined $header)
+      {
+         my $fraction_masked = ($seq =~ tr/acgtn//);
+         $fraction_masked /= length($seq);
+         if ($fraction_masked >= $cutoff)
+         {
+            print $out_above "$header\n$seq\n";
+         }
+         else
+         {
+            print $out_below "$header\n$seq\n";
+         }
+      }
+      $header = $_;
+      $seq = "";
+   }
+   else
+   {
+      $seq .= $_;
+   }
+}
+
+# output last record
+if (defined $header)
+{
+   my $fraction_masked = ($seq =~ tr/acgtn//);
+   $fraction_masked /= length($seq);
+   if ($fraction_masked >= $cutoff)
+   {
+      print $out_above "$header\n$seq\n";
+   }
+   else
+   {
+      print $out_below "$header\n$seq\n";
+   }
+}

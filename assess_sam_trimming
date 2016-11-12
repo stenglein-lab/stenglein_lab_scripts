@@ -1,0 +1,117 @@
+#!/usr/bin/perl
+
+# this script parses a SAM output file
+# and outputs the fraction of aligned reads
+# that are soft trimmed
+#
+# Mark Stenglein May 6, 2014
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+This script parses a SAM output file
+and outputs the fraction of aligned reads
+that are soft trimmed
+
+Outputs to stdout
+
+Mark Stenglein 5.6.2014
+
+ usage: $0  [h] <sam_file>
+
+   -h                print this message
+
+USAGE
+
+my $print_usage = 0;
+my $output_unmapped = 0;
+
+if (scalar @ARGV == 0 and -t STDIN) { print $usage; exit; }
+
+GetOptions ("h" => \$print_usage); 
+
+if ($print_usage) { print $usage; exit; }
+
+my $flag = 0;
+my @fields = ();
+my @tags = ();
+my $soft_trimming_tally = 0;
+my $seq_tally = 0;
+
+while (<>)
+{
+   chomp;
+
+   if (/^@/)
+   {
+      # don't do anything w/ header lines
+      next;
+   }
+   
+   # split line into tab-delimited components
+   @fields = split "\t";
+
+   # is this an unmapped query?
+   my $flag = $fields[1];
+   # don't output unmapped queries
+   # see SAM format spec.
+   if ($flag & 4) { next; }
+   
+   my $cigar = $fields[5];
+   my $soft_trimming = 0;
+
+   if ($cigar =~ /^([0-9]+S)/)
+   {
+      warn "$cigar\n";
+   }
+
+   # cigar parsing code copied from: http://davetang.org/muse/2011/01/28/perl-and-sam/
+   while ($cigar !~ /^$/)
+   {
+      if ($cigar =~ /^([0-9]+[MIDS])/)
+      {
+         my $cigar_part = $1;
+         # if a match
+         if ($cigar_part =~ /(\d+)M/)
+         {
+            my $number_matches = $1;
+         } 
+         # if an insertion (in read), do nothing
+         elsif ($cigar_part =~ /(\d+)I/)
+         {
+            # nada 
+         } 
+         # if a deletion (in read), simply jump ahead in ref
+         elsif ($cigar_part =~ /(\d+)D/)
+         {
+            ## $position_in_reference += $1;
+         } 
+         elsif ($cigar_part =~ /(\d+)S/)
+         {
+            # soft clipping occurs only at ends of sequence
+            # and the reported start position (field[3]), is 
+            # the leftmost *aligned* base
+            $soft_trimming = 1;
+
+         } 
+         $cigar =~ s/$cigar_part//;
+      } 
+      else 
+      {
+         die "Unexpected cigar: $cigar\n";
+      }
+   }
+   if ($soft_trimming)
+   {
+      $soft_trimming_tally += 1;
+   }
+   $seq_tally += 1;
+}
+
+my $trimmed_fraction = $soft_trimming_tally / $seq_tally;
+
+printf ("%d\t%d\t%0.2f\n", $soft_trimming_tally, $seq_tally, $trimmed_fraction);
+

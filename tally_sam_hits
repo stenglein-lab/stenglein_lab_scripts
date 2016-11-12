@@ -1,0 +1,95 @@
+#!/usr/bin/perl
+
+# 
+# Tally hits in sam output
+# 
+# Mark Stenglein July 27, 2012
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+
+ usage: $0  [-h] [-u] <sam_file>
+
+   -h                print this message
+
+   -u                output unmapped queries (that have no alignment).
+                     default is to supress them
+
+USAGE
+
+my $print_usage = 0;
+my $output_unmapped = 0;
+
+if (scalar @ARGV == 0) { print $usage; exit; }
+
+GetOptions ("h" => \$print_usage, 
+            "u" => \$output_unmapped);
+
+if ($print_usage) { print $usage; exit; }
+
+my $sam_file = shift or print $usage and die($!);
+open (my $sam_fh, "<", $sam_file) or print $usage and die("error: couldn't open sam file $sam_file\n$!\n");
+
+my $flag = 0;
+my @fields = ();
+my @tags = ();
+my %hits = ();
+
+my %queries = ();
+
+while (<$sam_fh>)
+{
+   chomp;
+
+   if (/^@/)
+   {
+      # header lines - ignore them
+      next;
+   }
+   
+   # split line into tab-delimited components
+   @fields = split "\t";
+
+   # is this an unmapped query?
+   if (!$output_unmapped)
+   {
+      my $flag = $fields[1];
+      # don't output unmapped queries
+      # see SAM format spec.
+      if ($flag & 4) { next; }
+   }
+
+	## my $query = $fields[0];
+
+   my $hit = $fields[2];
+   $hits{$hit} += 1;
+   # my $num_fields = scalar (@fields);
+   # @tags = @fields[11 .. ($num_fields-1)];
+   # foreach (@tags)
+   # {
+      # if (/AS:i:([0-9]+)/)
+      # {
+         # my $alignment_score = $1;
+         # if (($lower_cutoff && ($alignment_score <= $lower_cutoff)) || ($upper_cutoff && ($alignment_score >= $upper_cutoff)))
+         # {
+            # # this one outside of range
+            # next;
+         # }
+      # }
+   # }
+   # print "$_\n";
+}
+
+# re-iterate through hits and tally
+
+
+
+foreach my $hit (sort {$hits{$b} <=> $hits{$a}} keys %hits)
+{
+   my $hit_count = $hits{$hit};
+   print "$hit\t$hit_count\n";
+}

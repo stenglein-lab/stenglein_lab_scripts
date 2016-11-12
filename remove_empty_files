@@ -1,0 +1,3 @@
+#!/bin/bash
+
+find -empty -print $* | xargs rm -f

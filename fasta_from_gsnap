@@ -1,0 +1,184 @@
+#!/usr/bin/perl
+
+# given a gsnap output file, output the records from the
+# fasta file used as input to the gsnap
+# guess the fasta filename based on the gsnap results filename
+#
+# Mark Stenglein Feb 21, 2012
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  Given a gsnap file, output the records from the
+  fasta or fastq file used as input to the gsnap.
+
+  If -f not specified then guess the fasta/q filename 
+  based on the gsnap results filename.
+
+usage: $0 [-h] [-e max_evalue] [-m max_mm] [-l min_len] [-r] [-f fasta/q_file] <gsnap_out_file>";
+
+   -h                 print this message. 
+
+   -m max_mismatches  records with more than this many mismatches in alignment
+                      will be ignored.  --> NOT IMPLEMENTED YET
+
+   -l min_aln_length  records with an alignment length less than this will
+                      be ignored.  --> NOT IMPLEMENTED YET
+
+   -r                 reverse of normal behavior - output all those records
+                      without a hit at or below the specified e-value 
+
+   -f fasta/q_file    the fasta/q file that was used as gsnap query
+                      if not specified, the name will be inferred from 
+                      the name of the gsnap results file
+USAGE
+
+#TODO - make this configurable
+my $split_ids = 1;
+
+my $print_usage = 0;
+my $fasta_file = undef;
+my $output_misses = 0;
+my $min_aln_length = undef;
+my $max_mismatches = undef;
+
+if (scalar @ARGV == 0) { warn $usage and die; }
+
+GetOptions ( "h" => \$print_usage,
+             "m=i" => \$max_mismatches, 
+             "l=i" => \$min_aln_length, 
+             "r" => \$output_misses, 
+             "f=s" => \$fasta_file);
+
+if ($print_usage) { print $usage and exit;}
+
+if (defined $min_aln_length or defined $max_mismatches)
+{
+   die "error: option not implemented\n";
+}
+
+while (my $gsnap_file = shift)
+{
+   open (my $gsnap_fh, "<", $gsnap_file) or print "error: couldn't open gsnap results file: $gsnap_file\n$usage" and exit;
+
+   if (!$fasta_file)
+   {
+      # try to figure out fasta/fastq filename
+      $gsnap_file =~ /(.*\.(fasta|fastq|fa|fq))(?!.*\.(fasta|fastq|fa|fq))/;
+      $fasta_file = $1;
+   }
+   open (my $fasta_fh, "<", $fasta_file) or print "error: couldn't open fasta file: $fasta_file\n$usage" and exit;
+
+   my @fields = ();
+   my %ids = ();
+   # parse gsnap file, keeping track of query IDs
+   warn "parsing gsnap file: $gsnap_file\n";
+   while (<$gsnap_fh>)
+   {
+      chomp;
+      if (/^>/)
+      {
+         # header line
+         @fields = split "\t";
+         # if (scalar @fields != 12) { print "error: unexpected format for gsnap file.  Line: $_\n" and exit; }
+         if (scalar @fields != 4) { warn "error: unexpected format for gsnap file.  Line: $_\n"; }
+         my $id = $fields[3];
+         if (defined $max_mismatches and ($fields[4] > $max_mismatches))
+         {
+            next;
+         }
+         if (defined $min_aln_length and ($fields[3] < $min_aln_length))
+         {
+            next;
+         }
+         $ids{$id} = 1;
+         # warn "$id\n";
+      }
+   }
+
+   my $printing_lines = 0;
+   warn "parsing fasta/fastq file: $fasta_file\n";
+
+   my $seq = undef;
+   my $header = undef;
+   my $fastq_file = 0;
+   my $line_count = 0;
+   my $first_line = 1;
+
+   while (<$fasta_fh>)
+   {
+      chomp;
+      $line_count += 1;
+
+      # determine if fasta or fastq
+      if ($first_line)
+      {
+         $first_line = 0;
+         if (/^@/)
+         {
+            $fastq_file = 1;
+         }
+         elsif (!/^>/)
+         {
+            warn "\nerror - was expecting fasta or fastq input. First line = $_\n\n";
+            print $usage and exit;
+         }
+      }
+
+      if ($line_count == 1)
+      {
+         # parse header and determine whether to output record or not
+         if (!$fastq_file and (!/^>/))
+         {
+            warn "\nerror - was expecting 2-line fasta input. Line = $_\n\n";
+            print $usage and exit;
+         }
+         elsif ($fastq_file and (!/^@/))
+         {
+            warn "\nerror - was expecting 4-line fastq input. Line = $_\n\n";
+            print $usage and exit;
+         }
+   
+         if (/^[>@](.*)/)
+         {
+            $header = $1;
+         }
+
+         $printing_lines = 0;
+         my $id = $header;
+	      if ($split_ids)
+	      {
+	         $id =~ /(\S+)\s/;
+	         $id = $1;
+	      }
+
+         # warn "$id\n";
+         if ($ids{$id}) 
+         {
+            if (!$output_misses)
+            {
+               $printing_lines = 1;
+            }
+         }
+         elsif ($output_misses)
+         {
+            $printing_lines = 1;
+         }
+      }
+      elsif ($line_count == 2 and !$fastq_file)
+      {
+         $line_count = 0;
+      }
+      elsif ($line_count == 4 and $fastq_file)
+      {
+         $line_count = 0;
+      }
+
+      if ($printing_lines)
+      {
+        print "$_\n";
+      }
+   }
+}

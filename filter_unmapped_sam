@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+
+# this script parses a SAM output file
+# and outputs all records that are aligned
+# (i.e., all records without bit 0x04 set)
+#
+# Mark Stenglein July 27, 2012
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+This script filters out unmapped reads from a SAM format file
+
+Outputs to stdout
+
+Mark Stenglein Feb 20, 2013  
+
+ usage: $0  [h] <sam_file>
+
+   -h                print this message
+
+USAGE
+
+my $print_usage = 0;
+my $output_unmapped = 0;
+
+if (scalar @ARGV == 0) { print $usage; exit; }
+
+GetOptions ("h" => \$print_usage); 
+
+if ($print_usage) { print $usage; exit; }
+
+my $sam_file = shift or print $usage and die($!);
+open (my $sam_fh, "<", $sam_file) or print $usage and die("error: couldn't open sam file $sam_file\n$!\n");
+
+my $flag = 0;
+my @fields = ();
+my @tags = ();
+
+while (<$sam_fh>)
+{
+   chomp;
+
+   if (/^@/)
+   {
+      # header lines - just output them
+      print "$_\n";
+      next;
+   }
+   
+   # split line into tab-delimited components
+   @fields = split "\t";
+
+   # is this an unmapped query?
+   if (!$output_unmapped)
+   {
+      my $flag = $fields[1];
+      # don't output unmapped queries
+      # see SAM format spec.
+      if ($flag & 4) { next; }
+   }
+
+   print "$_\n";
+}

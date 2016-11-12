@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+# takes a fasta file as input
+# outputs gc content over a sliding window 
+# for each sequence
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+   $0 [-h] [-w window_size]
+
+   -h               print this message
+   -w window_size   use the indicated window size
+   -s step_size     size to step between windows
+
+USAGE
+
+my $window_size = 100;
+my $step_size = 1;
+my $print_usage = 0;
+
+GetOptions("h" => \$print_usage, "w=i" => \$window_size, "s=i" => \$step_size);
+
+if ($print_usage) { print $usage and exit;}
+
+if ($window_size <= 0)
+{
+   print "error: invalid window size $window_size";
+   die ($usage);
+}
+if ($step_size <= 0)
+{
+   print "error: invalid step size $step_size";
+   die ($usage);
+}
+
+my $seq = undef;
+my $header = undef;
+
+while (<>)
+{
+   chomp;
+   # print "$_\n";
+   if (/>/)
+   {
+      if (defined $header)
+      {
+         output_gc($header, $seq);
+      }
+      $header = $_;
+      $seq = "";
+   }
+   else
+   {
+      $seq .= $_;
+   }
+}
+# last one
+if (defined $header)
+{
+   output_gc($header, $seq);
+}
+
+sub output_gc
+{
+   my ($header, $sequence) = @_;
+   print "$header\n";
+   if ($window_size > length ($sequence))
+   {
+      $window_size = length($sequence);
+   }
+   if ($step_size > $window_size)
+   {
+      $step_size = $window_size;
+   }
+   for (my $i = 0; $i <= (length ($sequence) - $window_size); $i += $step_size )
+   {
+      my $window = uc (substr($sequence, $i, $window_size));
+      my $num_g = ($window =~ s/G/G/g);
+      my $num_c = ($window =~ s/C/C/g);
+      my $gc_content = ($num_g + $num_c)/($window_size);
+      print "$i\t$gc_content\n";
+   }
+}

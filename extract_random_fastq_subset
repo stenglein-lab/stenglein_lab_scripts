@@ -1,0 +1,66 @@
+#!/usr/bin/perl 
+
+#
+# this script will print to stdout a random subset of 1 in n sequences
+# from a fastq file in stdin
+#
+# assumes 4-line fastq input
+#
+# Mark Stenglein, May, 2011
+#
+
+use Getopt::Std;
+
+$usage = "extract_random_fastq_subset [-n denominator] \n";
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+getopt ('n');
+if (defined $opt_n)
+{
+   if ($opt_n <= 0)
+   {
+      warn ("invalid denominator: $opt_n\n");
+      die ($usage);
+   }
+   $n = $opt_n;
+}
+else
+{
+   # default is to sample 1/100 (1%)
+   $n = 100;
+}
+
+my $print_lines = 0;
+my $line_count = 0;
+
+while (<>)
+{
+   $line_count += 1;
+   if ($line_count == 1)
+   {
+      if (!/^@/)
+      {
+         die ("error - was expecting 4-line FASTQ file input.  Line = $_\n");
+      }
+      if ($print_lines == 1)
+      {
+         $print_lines = 0;
+      }
+      # this simulates a one in $n chance of occuring
+      my $random_integer = int(rand($n));
+      if ($random_integer == 1)
+      {
+         $print_lines = 1;
+      }
+   }
+   elsif ($line_count == 4)
+   {
+      $line_count = 0;
+   }
+
+   if ($print_lines)  
+   {
+      print "$_";
+   }
+}

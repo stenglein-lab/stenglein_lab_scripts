@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+
+# calculate mean, median, and stdev of 
+# sequence lengths in a fastq file
+#
+# Mark Stenglein, Sept 22, 2016
+
+use strict;
+
+use Histogram;
+
+
+# read fastq file from stdin
+my $seq_length = undef;
+my @seq_lengths = ();
+my $line_counter = 0;
+while (<>)
+{
+   chomp;
+	$line_counter += 1;
+   if ($line_counter == 1 and !/^@/)
+   {
+	   warn "error: was expecting 4-line fastq format.  Line: $_\n";
+	}
+	elsif ($line_counter == 2)
+	{
+	   $seq_length = length $_;
+      push @seq_lengths, $seq_length;
+	}
+	elsif ($line_counter == 4)
+	{
+	   $line_counter = 0;
+	}
+}
+
+my $num_seqs = scalar @seq_lengths;
+my $mean = mean(@seq_lengths);
+my $median = median(@seq_lengths);
+my $stdev = standard_deviation(@seq_lengths);
+
+print "Length statistics for $num_seqs sequences\n";
+print "Mean\t$mean\nMedian\t$median\nStdev\t$stdev\n";
+print "Histogram:\n";
+
+my $min_bin = 0;
+my $max_bin = 10000000;
+my $bin_width = 10;
+
+my %params = (values => \@seq_lengths, bin_min=>$min_bin, bin_max=>$max_bin, bin_width=>$bin_width);
+# my $hist_ref = Histogram::histogram_hash_defined_bins(\%params);
+my $hist_ref = Histogram::histogram_hash(\@seq_lengths);
+foreach my $bin (sort {$a <=> $b} keys %$hist_ref)
+{
+   print "$bin\t$$hist_ref{$bin}\n";
+}
+
+# Return mean value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+sub mean
+{
+   my $sum = 0;
+   my $count = 0;
+   foreach my $val (@_)
+   {
+      $sum += $val;
+      $count += 1;
+   }
+   if ($count == 0)
+   {
+      return undef;
+   }
+   my $mean = $sum / $count;
+   return $mean;
+}
+
+# Return median value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+# Also assumes no NA (missing) values in the input
+#
+sub median
+{
+   my @a = sort @_;
+   return ($a[$#a/2] + $a[@a/2]) / 2;
+}
+
+# Calculate standard deviation of a list
+# of numeric values
+sub standard_deviation
+{
+   my @a = @_;
+   if (@a == 0) { return undef; }
+   my $sum = 0;
+   my $n = 0;
+   foreach my $val (@a)
+   {
+      $sum += $val;
+      $n++;
+   }
+   my $mean = $sum / $n;
+   my $sum_delta_squared = 0;
+   foreach my $val (@a)
+   {
+      my $delta = $val - $mean;
+      my $delta_squared = $delta * $delta;
+      $sum_delta_squared += $delta_squared;
+   }
+   # divide by n-1 for "sample standard deviation"
+   # avoid division by zero
+   if ($n <= 1) { return undef; }
+   my $variance = $sum_delta_squared / ($n-1);
+   my $standard_deviation = $variance ** 0.5;
+   return $standard_deviation;
+}
+

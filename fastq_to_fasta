@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+
+# convert fastq to fastq
+#
+# reads from stdin writes to stdout
+# assume 4-line fastq 
+#
+# Mark Stenglein, July 11, 2012
+
+use strict;
+
+my $line_count = 0;
+
+while (<>)
+{
+   $line_count += 1;
+
+   if ($line_count == 1)
+   {
+      # sanity check on fastq input format
+      if (!/^@/)
+      {
+         die ("error - was expecting 4-line fastq input.\nline = $_\n");
+      }
+      tr/@/>/;
+      print "$_";
+   }
+   elsif ($line_count == 2)
+   {
+      print "$_";
+   }
+   elsif ($line_count == 4)
+   {
+      $line_count = 0;
+   }
+}

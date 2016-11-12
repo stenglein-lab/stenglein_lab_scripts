@@ -1,0 +1,119 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+my $n_5prime_bases = undef;
+
+my $usage = <<USAGE;
+
+  This script concatenates fasta records from two files.
+
+  It assume the two files are paired.
+
+
+  Mark Stenglein 9.27.2012
+
+  usage: concat_fasta_records [-h] <fasta_file1> <fasta_file2> 
+
+  -h         print this message
+
+  -5 #bases  only concatenate the first (5') # bases from each record        
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit;}
+
+GetOptions("h" => \$print_usage,
+           "5=i" => \$n_5prime_bases);
+
+if ($print_usage) {print $usage and exit;}
+
+if (defined $n_5prime_bases and $n_5prime_bases < 0)
+{
+   warn "error: was expecting a positive integer for # of 5' bases: $n_5prime_bases\n";  
+   print $usage and exit;
+}
+
+my $f1 = shift;
+my $f2 = shift;
+
+open (my $fh1, "<", $f1) or warn "error: couldn't open file $f1\n$usage\n" and exit;
+open (my $fh2, "<", $f2) or warn "error: couldn't open file $f2\n$usage\n" and exit;
+
+my $f1_h = undef;
+my $f1_s = undef;
+my $f2_h = undef;
+my $f2_s = undef;
+
+while (($f1_h, $f1_s) = get_fasta_record($fh1))
+{
+   if (!defined $f1_h)
+   {
+      last;
+   }
+   ($f2_h, $f2_s) = get_fasta_record($fh2);
+
+   if ((!$f1_h && $f2_h) || ($f1_h && !$f2_h))
+   {
+      warn "error: apparently mismatched fasta files\n" and exit;
+   }
+   
+   my $joint_header = $f1_h;
+   if ($joint_header =~ /(\S+)\s+/)
+   {
+      $joint_header = $1;
+   }
+   
+   print "$joint_header\n";
+   if (defined $n_5prime_bases)
+   {
+      $f1_s = substr($f1_s, 0, $n_5prime_bases);
+      $f2_s = substr($f2_s, 0, $n_5prime_bases);
+   }
+   print "$f1_s";
+   print "$f2_s\n";
+}
+   
+sub get_fasta_record
+{
+   my $fh = $_[0];
+   my $header = undef;
+   my $seq = undef;
+   my $found_first_header = 0;
+   if (eof $fh)
+   {
+      return undef;
+   }
+   my $file_position = tell $fh;
+   # read a line
+   while (<$fh>)
+   {
+      chomp;
+      if (!$found_first_header)
+      {
+         if (!/^>/)
+         {
+            warn "error parsing file.  was expecting fasta header.  Line: $_\n" and exit;
+         }
+         $header = $_;
+         $found_first_header = 1;
+      }
+      elsif (/^>/)
+      {
+         # found next record
+         # rewind to position before the next record
+         seek ($fh, $file_position, 0);
+         return ($header, $seq);
+
+      }
+      else
+      {
+         $seq = $seq . $_;
+      }
+      $file_position = tell $fh;
+   }
+   # in case of last record or no record
+   return ($header, $seq);
+}

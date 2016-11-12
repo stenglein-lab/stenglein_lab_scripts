@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+
+# Interleaves the lines of multiple files
+#
+# Mark Stenglein, August 22, 2011
+
+use strict;
+
+my @fhs;
+
+while (my $fn = shift)
+{
+   open (my $fh, "<", $fn) or die ("error: couldn't open file $fn\n");
+   push (@fhs, $fh);
+}
+
+my $something_left = 1;
+
+while ($something_left)
+{
+   $something_left = 0;
+   foreach my $fh (@fhs)
+   {
+      my $line = <$fh>;
+      if (defined $line)
+      {
+         $something_left = 1;
+         print "$line";
+      }
+   }
+}
+

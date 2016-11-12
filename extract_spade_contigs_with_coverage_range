@@ -1,0 +1,80 @@
+#!/usr/bin/perl
+
+# this script outputs spade contigs within a particular coverage range
+#
+# Mark Stenglein August 29, 2011
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  This script reads a SPADES assembler-created fasta file (of SPADES contigs)
+  and outputs those contigs whose average coverage level falls within a specified
+  range.  It determines average coverage level from the fasta header, which it expects
+  to look something like:
+
+  NODE_60_length_1427_cov_551.724_ID_119
+
+
+  Reads from stdin and writes to stdout. 
+
+  Mark Stenglein 10/26/2015
+
+
+  usage: $0 [h] [-b bottom_cutoff] [-t top_cutoff] <spade_contigs_fasta_file>
+
+     -h          print this help msg
+
+     -b bottom_cutoff   only output contigs whose average coverage is above this
+                        cutoff.  default = 0.
+
+     -b top_cutoff      only output contigs whose average coverage is below this
+                        cutoff.  default = infinity.
+
+USAGE
+
+
+
+if ( -t STDIN and not @ARGV) { print $usage and exit; }
+
+my $lower_cutoff = undef;
+my $upper_cutoff = undef;
+my $print_usage = 0;
+
+GetOptions ("h" => \$print_usage, "b=s" => \$lower_cutoff, "t=s" => \$upper_cutoff);
+
+if ($print_usage) { print $usage; exit; }
+
+my $printing_lines = 0;
+
+while (<>)
+{
+   chomp;
+   if (/^>/)
+   {
+      # cov_551.724_ID
+      if (/cov_(\d*\.?\d+)_ID/)
+      {
+         my $coverage_level = $1;
+         if (($lower_cutoff && ($coverage_level < $lower_cutoff)) || ($upper_cutoff && ($coverage_level > $upper_cutoff)))
+         {
+            $printing_lines = 0;
+         }
+         else
+         {
+            $printing_lines = 1;
+         }
+      }
+      else
+      {
+         warn "unexpcted format for header line for line: $_\n";
+      }
+   }
+   if ($printing_lines)
+   {
+      print "$_\n";
+   }
+}
+

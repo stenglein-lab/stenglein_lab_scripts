@@ -1,0 +1,38 @@
+#!/usr/bin/perl
+
+# reformat fasta records in a standardized format
+
+use strict;
+
+my $seq = undef;
+
+my $header_observed = 0;
+
+while (<>)
+{
+   chomp;
+   if (/^>/)
+   {
+      $header_observed = 1;
+      if ($seq)
+      {
+         # print previous seq
+         print "$seq\n";
+         $seq = undef;
+      }
+      print "$_\n";
+   }
+   elsif ($header_observed)
+   {
+      # strip whitespace
+      s/\s+//g;
+      $seq .= $_;
+   }
+}
+
+# last one
+if ($seq)
+{
+   print "$seq\n";
+}
+

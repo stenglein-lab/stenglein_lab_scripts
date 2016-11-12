@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# user can supply number of files to show
+if [ -z "$1" ]
+then
+    num_to_tail=30
+else
+    num_to_tail=$1
+fi
+
+
+
+find . -type f -printf '%TY-%Tm-%Td %TT %p\n' | sort | tail -$num_to_tail

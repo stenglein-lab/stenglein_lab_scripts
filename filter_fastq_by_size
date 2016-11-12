@@ -1,0 +1,61 @@
+#!/usr/bin/perl
+
+# this script filters fastq sequences based
+# on size cutoffs
+#
+# assumes 4-line fastq format
+#
+# Mark Stenglein March 11, 2016 
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = "filter_fastq_by_size [h] [-b bottom_cutoff] [-t top_cutoff] <fasta_file>\n";
+
+my $lower_cutoff = undef;
+my $upper_cutoff = undef;
+my $print_usage = 0;
+
+GetOptions ("h" => \$print_usage, "b=s" => \$lower_cutoff, "t=s" => \$upper_cutoff);
+
+if ($print_usage) { print $usage; exit; }
+
+
+my $seq = undef;
+my $header = undef;
+
+my $line_count = 0;
+
+my @lines = ();
+
+while (<>)
+{
+   chomp;
+
+	$line_count += 1;
+	$lines[$line_count-1] = $_;
+
+   if ($line_count == 1)
+   {
+	   if (/!^@/)
+		{
+		   warn "error: was expecting 4-line fastq format.  line = $_\n" and exit;
+		}
+	}
+   elsif ($line_count == 4)
+   {
+      my $seq_length = length ($lines[1]);
+      if (($lower_cutoff && ($seq_length < $lower_cutoff)) || ($upper_cutoff && ($seq_length > $upper_cutoff)))
+      {
+         # don't print out record
+         # warn "filtering record with seq length: $seq_length (lower: $lower_cutoff ; upper: $upper_cutoff)\n";
+      }
+      else
+      {
+            print "$lines[0]\n$lines[1]\n$lines[2]\n$lines[3]\n";
+      }
+		$line_count = 0;
+   }
+}
+

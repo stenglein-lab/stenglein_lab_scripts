@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+
+use strict;
+use Levenshtein;
+
+my $max_dist_to_print = undef;
+
+my $usage = "pairwise_lev_dist <file_of_strings_1> <file_of_strings_2>\n";
+
+my $file1 = shift or print ($usage) and die($!);
+my $file2 = shift or print ($usage) and die($!);
+
+open (my $fh1, "<", $file1) or print ($usage) and die($!);
+open (my $fh2, "<", $file2) or print ($usage) and die($!);
+
+my @strings1 = ();
+my @strings2 = ();
+
+while (<$fh1>)
+{
+   chomp;
+   push @strings1, $_;
+}
+while (<$fh2>)
+{
+   chomp;
+   push @strings2, $_;
+}
+
+my $i1 = 0;
+my $i2 = 0;
+my $d = 0;
+foreach my $s1 (@strings1)
+{
+   $i1++;
+   foreach my $s2 (@strings2)
+   {
+      $i2++;
+      $d = Levenshtein::levenshtein ($s1, $s2);
+      if (defined $max_dist_to_print and ($d > $max_dist_to_print))
+      {
+		   next;
+      }
+      print "$i1\t$s1\t$i2\t$s2\t$d\n";
+   }
+}

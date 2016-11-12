@@ -1,0 +1,68 @@
+#!/usr/bin/perl
+
+# this script filters fasta sequences based
+# on size cutoffs
+#
+# Mark Stenglein August 29, 2011
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = "filter_fasta_by_size [h] [-b bottom_cutoff] [-t top_cutoff] <fasta_file>\n";
+
+my $lower_cutoff = undef;
+my $upper_cutoff = undef;
+my $print_usage = 0;
+
+GetOptions ("h" => \$print_usage, "b=s" => \$lower_cutoff, "t=s" => \$upper_cutoff);
+
+if ($print_usage) { print $usage; exit; }
+
+# my $fasta_file = shift or print $usage and die($!);
+# open (my $fasta_fh, "<", $fasta_file) or print $usage and die("error: couldn't open FASTA file $fasta_file\n$!\n");
+
+my $seq = undef;
+my $header = undef;
+
+# while (<$fasta_fh>)
+while (<>)
+{
+   chomp;
+   if (/^>/)
+   {
+      if ($header) 
+      {
+         my $seq_length = length ($seq);
+         if (($lower_cutoff && ($seq_length < $lower_cutoff)) || ($upper_cutoff && ($seq_length > $upper_cutoff)))
+         {
+            # don't print out record
+            # warn "filtering record with seq length: $seq_length (lower: $lower_cutoff ; upper: $upper_cutoff)\n";
+         }
+         else
+         {
+            print "$header\n$seq\n";
+         }
+      }
+      $header = $_;
+      $seq = "";
+   }
+   else
+   {
+      $seq .= $_;
+   }
+}
+
+# last record
+if ($header) 
+{
+   my $seq_length = length ($seq);
+   if (($lower_cutoff && ($seq_length < $lower_cutoff)) || ($upper_cutoff && ($seq_length > $upper_cutoff)))
+   {
+      # don't print out record
+   }
+   else
+   {
+      print "$header\n$seq\n";
+   }
+}

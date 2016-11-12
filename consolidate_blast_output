@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+
+# This script reads a blast output (-m8, -m9) file and 
+# and outputs only the top hit (or hits in case of tie) 
+# for each query
+#
+# This can be run on a blast output file or can receive
+# and process piped output from blast 
+#
+# Mark Stenglein; July 5, 2011
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  This script collapses (tabular) blast output.  
+  
+  By default it only outputs the top scoring alignment (by bitscore) or alignments in 
+  case of tie.  
+  
+  Using the -t option prints out only the first best scoring alignment (and ignores ties). 
+  
+  Using the -top option outputs the top N scoring hits, even if some have a lower bitscore.
+
+  It assumes (m8 or m9) tablular BLAST output.
+
+
+  Reads from stdin.  Writes to stdout.
+
+
+  Usage: $0   [-t] [-top n] <blast_output>
+
+   -t               only output top (highest bitscore) hit for each query
+
+   -top n           only output top (highest bitscores) N hits for each query
+
+   -h               print this help message
+
+USAGE
+
+my $print_top_only = 0;
+my $top_n_hits = undef;
+my $print_usage = 0;
+
+GetOptions( "t" => \$print_top_only,
+            "h" => \$print_usage,
+            "top=i" => \$top_n_hits);
+
+if (scalar @ARGV == 0 and -t STDIN) { print $usage and exit; }
+
+if ($print_usage) { print $usage and exit; }
+
+my $current_query = undef;
+my @current_best_hits = ();
+my $current_best_bitscore = undef;
+
+my $n_counter = 0;
+
+# read from stdin
+LINE: while (<>)
+{
+   if (/^\s*#/)
+   {
+      # ignore comments (first lines for -m9) lines
+      next LINE;
+   }
+   chomp;
+   my @fields = split "\t";
+   if (scalar (@fields == 12))
+   {
+      # new query
+      if ($current_query ne $fields[0])
+      {
+         $current_query = $fields[0];
+         # first, print out best queries from last hit
+         foreach my $q (@current_best_hits)
+         {
+            print "$q\n";
+            if ($print_top_only) { last; }
+         }
+         @current_best_hits = ();
+         $current_best_bitscore = 0;
+
+         $current_best_bitscore = $fields[11];
+         push @current_best_hits, $_;
+
+         $n_counter = 1;
+      }
+      elsif ($top_n_hits and ($n_counter < $top_n_hits))
+      {
+         push @current_best_hits, $_;
+         $n_counter += 1;
+      }
+      elsif ($fields[11] >= $current_best_bitscore) 
+      {
+         # we have a new winner (or tier)
+         $current_best_bitscore = $fields[11];
+         if ($fields[11] > $current_best_bitscore)
+         {
+            @current_best_hits = ();
+         }
+         push @current_best_hits, $_;
+      }
+   }
+   else
+   {
+      warn ("ignoring line with unexpected format:\n$_\n");
+   }
+}
+# don't forget the last query
+foreach my $q (@current_best_hits)
+{
+   print "$q\n";
+   if ($print_top_only) { last; }
+}
+
+
+# successful completion
+exit (0);

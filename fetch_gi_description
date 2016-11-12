@@ -1,0 +1,188 @@
+#!/usr/bin/perl
+
+# given a GI, return its description
+# need to search by NCBI db (nuc or prot, so have to specify)
+#
+# Mark Stenglein Sept 21, 2012
+
+use strict;
+use Getopt::Long;
+use fetch_gi_esummary;
+use LWP::Simple;
+use Time::HiRes;
+
+my $usage = <<USAGE;
+
+This script takes a list of NCBI GIs and returns their descriptions 
+
+The GIs are read from stdin and output is sent to stdout
+
+usage: $0 [-h] [-p T/F] <gi_file>
+
+   -h         Print this help message
+
+   -p T/F     The GIs correspond to protein sequences 
+              (default = false, i.e. they correspond to nucleotide seqs)
+
+   <gi_file>  A list of GIs on stdin
+
+   Outputs:   Two column tab separated output. The first column is the GI.
+              The second is the decription.
+
+USAGE
+
+my $print_usage = 0;
+my $protein_seqs = 0;
+my @gis = ();
+
+GetOptions( "h" => \$print_usage,
+            "p=s" => \$protein_seqs);
+
+if ($print_usage) { print $usage and exit; }
+
+# if no stdin, print usage
+# if (scalar @ARGV == 0 and -t STDIN) { print $usage and exit; }
+
+# if no stdin, read GIs from command line
+if (-t STDIN) 
+{ 
+   @gis = @ARGV;
+}
+else
+{
+   while (<>)
+   {
+      chomp;
+      push @gis, $_;
+   }
+}
+
+if (scalar @gis == 0) { exit; }
+
+# print "GIS: @gis\n";
+
+if ($protein_seqs !~ /[tfTF10]/)
+{
+   print $usage and die ("error: invalid argument for -p, expecting T or F\n");
+}
+$protein_seqs =~ tr/Tt/1/;
+$protein_seqs =~ tr/Ff/0/;
+
+
+my $result = undef;
+if ($protein_seqs)
+{
+   $result = fetch_gi_protein_esummary(@gis);
+}
+else
+{
+   $result = fetch_gi_nucleotide_esummary(@gis);
+}
+
+# parse results "manually"
+# <Id>62954702</Id>
+# <Item Name="Caption" Type="String">CR848715</Item>
+# <Item Name="Title" Type="String">Zebrafish DNA sequence from clone RP71-23N3, complete sequence</Item>
+# <Item Name="Extra" Type="String">gi|62954702|emb|CR848715.9|[62954702]</Item>
+
+open (my $result_fh, "<", \$result) or die ("error parsing results from NCBI\n"); 
+
+my $gi = undef;
+my $description = undef;
+
+while (<$result_fh>)
+{
+   chomp;
+   if (/<Id>(\S+)<\/Id>/)
+   {
+      $gi = $1;
+      $description = undef;
+   }
+   elsif (/<Item Name="Title" Type="String">(.+)<\/Item>/)
+   {
+      $description = $1;
+      print "$gi\t$description\n";
+   }
+}
+
+
+
+#
+# retreive the results of a esummary query from an NCBI database
+#
+# Mark Stenglein
+# September 21, 2012
+
+ 
+sub fetch_gi_nucleotide_esummary
+{
+   return fetch_gi_esummary(@_, "nucleotide");
+}
+
+sub fetch_gi_protein_esummary
+{
+   return fetch_gi_esummary(@_, "protein");
+}
+
+sub fetch_gi_esummary
+{
+   my $db = pop (@_);
+   my @ids = ();
+   my $id_count = 0;
+   my $result = undef;
+
+   foreach my $id (@_)
+   {
+      push @ids, $id;
+      $id_count++;
+
+      # fetch 200 at a time
+      if ($id_count % 200 == 0)
+      {
+         ## warn "$id_count ";
+         $result .= fetch_one_batch(@ids, $db);
+         @ids = ();
+
+         # wait a third of a sec to avoid overloading NCBI servers (per their request)
+         Time::HiRes::usleep(333333);
+      }
+   }
+   if (scalar @ids > 0)
+   {
+      # fetch remaining gis
+      $result .= fetch_one_batch(@ids, $db);
+   }
+
+   return $result;
+}
+
+# here, actually fetch data from NCBI
+sub fetch_one_batch()
+{
+   my $db = pop (@_);
+   my @ids = @_;
+
+   # construct url
+   my $base_url = "http://www.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=$db&tool=fetch_gi_summary&email=markstenglein_at_yahoo.com";
+   my $id_url = "&id=";
+   foreach my $id (@ids)
+   {
+      $id_url .= "$id".","
+   }
+   my $url = $base_url.$id_url;
+
+   # warn "URL: $url\n";
+
+   # here is actual interweb transaction
+   my $efetch_result = get($url);
+
+   # simply dump the data to stdout
+   # print "$efetch_result\n"; 
+
+   return $efetch_result;
+
+   # code below loads result into an XML datastructure
+   # my $xs = XML::Simple->new(forcearray=>1);
+   # my $ref = $xs->XMLin($efetch_result);
+}
+

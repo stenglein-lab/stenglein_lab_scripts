@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# count records in fasta files
+
+usage="fasta_count [-s] <fasta_file_1> ... <fasta_file_n>"
+
+silent=0
+estimated=0
+
+while getopts "se" optname
+  do
+    case "$optname" in
+      "s")
+        silent=1
+        ;;
+      "e")
+        estimated=1
+        ;;
+      "h")
+        echo "$usage"
+        exit
+        ;;
+      "?")
+        echo "$usage"
+        exit
+        ;;
+    esac
+  done
+
+# shift away the options
+shift $((OPTIND-1))
+
+big_count=0
+for file in "$@"
+do
+   if [ $estimated -eq 1 ]; then
+      count=`estimated_fastx_count $file`
+   else
+      # count the number of lines beginning with ">"
+      count=`grep -c \> $file`
+      big_count=`expr $count + $big_count`
+   fi
+ 
+   if [ $silent -eq 1 ]; then
+      printf "$count\n";
+   else
+      printf "$file\t$count\n";
+   fi
+done
+
+if [ $silent -eq 0 ]; then
+   printf "total\t$big_count\n"
+fi
+
+

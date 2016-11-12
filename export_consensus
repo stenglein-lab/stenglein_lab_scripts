@@ -1,0 +1,56 @@
+#!/usr/bin/perl
+
+#
+# Read in a FASTA file MSA, and output its consensus
+#
+# Mark Stenglein, 7/12/2010
+#
+
+use Bio::Seq;
+use Bio::SeqIO;
+use Bio::AlignIO;
+
+$usage = "usage: export_consensus <alignment_file_in_fasta_format>\n";
+
+# $#ARGV is the number of arguments minus 1
+# if ( ($#ARGV+1) < 1)
+# {
+   # die ($usage);
+# }
+
+# $inputfilename = $ARGV[0];
+
+#$in  = Bio::AlignIO->new(-file   => $inputfilename ,
+#                         -format => 'fasta');
+$in  = Bio::AlignIO->new(-fh => \*ARGV,
+                         -format => 'fasta');
+
+
+# opening ">-" opens STDOUT
+# open (my $outfh, ">-");
+# $out = Bio::AlignIO->new(-fh   => $outfh,
+                           #-format => 'fasta');
+
+# opening ">-" opens STDOUT
+open (my $outfh, ">-");
+$out = Bio::SeqIO->new(-fh   => $outfh,
+                       -format => 'fasta');
+
+while ( my $aln = $in->next_aln() ) 
+{
+    # $out->write_aln($aln);
+    $consensus_string_100 = $aln->consensus_string(100);
+    $consensus_string_50 = $aln->consensus_string(50);
+    $consensus_string_iupac = $aln->consensus_iupac();
+    $consensus_seq_100 = Bio::Seq->new( -seq => $consensus_string_100,
+                                    -alphabet => 'DNA');
+    $consensus_seq_50 = Bio::Seq->new( -seq => $consensus_string_50,
+                                    -alphabet => 'DNA');
+    $consensus_seq_iupac = Bio::Seq->new( -seq => $consensus_string_iupac,
+                                    -alphabet => 'DNA');
+
+    $out->write_seq($consensus_seq_100);
+    $out->write_seq($consensus_seq_50);
+    $out->write_seq($consensus_seq_iupac);
+}
+

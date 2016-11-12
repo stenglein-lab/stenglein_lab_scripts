@@ -1,0 +1,162 @@
+#!/usr/bin/perl
+
+# this script parses a SAM output file
+# and outputs a tab delimited file with 
+# the first column in each row being the 
+# position in the sequence and the second
+# column being the fraction of reads that
+# have a left pair mapping at that positon
+# whose pair maps concordantly 
+#
+# Mark Stenglein August 6, 2014
+#
+
+use strict;
+use Getopt::Long;
+my $n_bases = 3;
+
+my $usage = <<USAGE;
+
+Given a SAM file describing paired-end mapping to a reference sequence,
+this script outputs a row for each position in the ref seq and the fraction
+of reads that map to that position that have a concordant pair.
+
+Outputs to stdout
+
+Mark Stenglein August 6, 2014
+
+ usage: $0  [h] <sam_file>
+
+   -h                print this message
+
+USAGE
+
+my $print_usage = 0;
+my $output_unmapped = 0;
+
+if (scalar @ARGV == 0 and -t STDIN) { print $usage; exit; }
+
+GetOptions ("h" => \$print_usage, "n=i" => \$n_bases); 
+
+if ($print_usage) { print $usage; exit; }
+
+my $flag = 0;
+my @fields = ();
+my @tags = ();
+my $seq_name = undef;
+my $seq_length = undef;
+my @mapped = ();
+my @unmapped = ();
+
+while (<>)
+{
+   chomp;
+
+   if (/^@/)
+   {
+      # @SQ   SN:Umbrella_L_cladeF_v1 LN:6927
+      if (/\@SQ\s+SN:(\S+)\s+LN:(\d+)/)
+      {
+         if (defined $seq_name)
+         {
+            die "error - this script only supports SAM files with a single ref seq.\n";  # TODO - extend
+         }
+         $seq_name = $1;
+         $seq_length = $2;
+         # initialize arrays
+         for (my $i = 0; $i < $seq_length; $i++)
+         {
+            $mapped[$i] = 0;
+            $unmapped[$i] = 0;
+         }
+      }
+      # don't do anything else w/ header lines
+      next;
+   }
+   
+   # split line into tab-delimited components
+   @fields = split "\t";
+
+   # is this an unmapped query?
+   my $flag = $fields[1];
+   # don't output unmapped queries
+   # see SAM format spec.
+   if ($flag & 0x4) { next; }
+   
+   my $start_pos = $fields[3];
+   my $cigar = $fields[5];
+
+   # leftmost aligned base 
+   my $position_in_reference = $start_pos;
+
+   # how to handle this?
+   # this seq is rev. complemented
+   if ($flag & 0x10)
+   {
+   }
+
+
+   # this read maps but its pair doesn't 
+   if ($flag & 0x8) 
+   {
+      $unmapped[$position_in_reference] += 1;
+   }
+   if ($flag & 8) 
+   {
+      $unmapped[$position_in_reference] += 1;
+   }
+
+   # cigar parsing code copied from: http://davetang.org/muse/2011/01/28/perl-and-sam/
+   while ($cigar !~ /^$/)
+   {
+      if ($cigar =~ /^([0-9]+[MIDS])/)
+      {
+         my $cigar_part = $1;
+         # if a match
+         if ($cigar_part =~ /(\d+)M/)
+         {
+            my $number_matches = $1;
+            # only counts as continuous coverage if the previous and following N bases also aligned ...
+            for (my $i = 0; $i < ($number_matches-$n_bases); $i++)
+            {
+               # only counts as continuous coverage if the previous and following N bases also aligned ...
+               if ($i > ($n_bases - 1))
+               {
+                  $histo{$position_in_reference} += 1;
+               }
+               $position_in_reference += 1;
+            }
+         } 
+         # if an insertion (in read), do nothing
+         elsif ($cigar_part =~ /(\d+)I/)
+         {
+            # nada 
+         } 
+         # if a deletion (in read), simply jump ahead in ref
+         elsif ($cigar_part =~ /(\d+)D/)
+         {
+            $position_in_reference += $1;
+         } 
+         elsif ($cigar_part =~ /(\d+)S/)
+         {
+            # soft clipping occurs only at ends of sequence
+            # and the reported start position (field[3]), is 
+            # the leftmost *aligned* base
+         } 
+         $cigar =~ s/$cigar_part//;
+      } 
+      else 
+      {
+         die "Unexpected cigar: $cigar\n";
+      }
+   }
+}
+
+foreach (my $i = 1; $i <= $seq_length; $i++)
+{
+   if (!$histo{$i})
+   {
+      $histo{$i} = 0;
+   }
+   print "$i\t$histo{$i}\n";
+}

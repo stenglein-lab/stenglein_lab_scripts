@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $num_n = shift;
+
+my $string = "N"x$num_n;
+
+print "$string\n";

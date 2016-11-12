@@ -1,0 +1,153 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+my $fasta_file = undef;
+my $read_length = 129;
+
+my $usage = <<USAGE;
+
+  given a bowtie output (SAM) file, extract data to plot a 2D concordance plot
+ 
+  Mark Stenglein Jan 6, 2014
+
+usage: $0 [-h] [-f fasta_file] <sam_file>";
+
+   -h                 print this message. 
+
+   -l                 read length (default = $read_length)
+
+   -f fasta_file      the fasta file that was used as blast query
+                      if not specified, the name will be inferred from 
+                      the name of the SAM file
+USAGE
+
+#TODO - make this configurable
+my $split_ids = 1;
+
+if (scalar @ARGV == 0) { warn $usage and die; }
+
+GetOptions ( "h" => \$print_usage,
+             "l=s" => \$read_length,
+             "f=s" => \$fasta_file);
+
+if ($print_usage) { print $usage and exit;}
+
+my $fasta_fh = undef;
+my $sequence_name = undef;
+my $sequence_length = undef;
+
+my %reads = ();
+
+while (my $sam_file = shift)
+{
+   open (my $sam_fh, "<", $sam_file) or print "error: couldn't open SAM results file: $sam_file\n$usage" and exit;
+
+   if ($fasta_file)
+   {
+      ## # try to figure out fasta filename
+      ## $sam_file =~ /(.*\.(fasta|fa))(?!.*\.(fasta|fa))/;
+      ## $fasta_file = $1;
+      open ($fasta_fh, "<", $fasta_file) or print "error: couldn't open fasta file: $fasta_file\n$usage" and exit;
+   }
+
+   my @fields = ();
+   my %ids = ();
+   # parse sam file, keeping track of query IDs
+   ## warn "parsing sam file: $sam_file\n";
+   while (<$sam_fh>)
+   {
+      chomp;
+
+      if (/^@/)
+      {
+         # header lines 
+         # 
+         if (/\@SQ/)
+         {
+            if (/\@SQ\s+SN:(\S+)\s+LN:(\d+)/)
+            {
+               $sequence_name = $1;
+               $sequence_length = $2;
+            }
+            if (!$sequence_name or !$sequence_length)
+            {
+               die "error: couldn't parse sequence name or length from SAM file\nline: $_\n";
+            }
+         }
+         # mostly ignore headers
+         next;
+      }
+
+      # split line into tab-delimited components
+      @fields = split "\t";
+
+
+      my $query = $fields[0];
+      my $flag = $fields[1];
+      # see SAM format spec.
+      if ($flag & 4) { warn "skipping line: $_\n"; next; }   # skip mismatches 
+      my $insert_length = $fields[8];
+
+      if ($insert_length == 0)
+      {
+         #discordant alignment
+         my $left_coord = $fields[3];
+         warn "$left_coord\t$left_coord\n";
+      }
+      elsif ($insert_length < 0)
+      {
+         # this is the line for the rev-comp alignment, skip it because the information we 
+         # care about is mirrored in the fwd alignment info
+      }
+      else
+      {
+         my $left_coord = $fields[3];
+         my $pair_left_coord = $fields[7];
+         my $pair_right_coord = $pair_left_coord + $read_length - 1;
+
+         if ($left_coord < 0)
+         {
+            die "error: left coordinate ($left_coord) less than 0 on line: $_\n";
+         }
+         if  ($pair_right_coord > $sequence_length)
+         {
+            # die "error: right coordinate ($pair_right_coord) greater than sequence length $sequence_length\non line: $_\n";
+
+            # just mapped past end
+            $pair_right_coord = $sequence_length;
+         }
+
+         print "$left_coord\t$pair_right_coord\n";
+      }
+   }
+
+   # don't do anything here yet
+   my $printing_lines = 0;
+   # warn "parsing fasta file: $fasta_file\n";
+   while (<$fasta_fh>)
+   {
+      chomp;
+      if (/^>(.*)$/)
+      {
+         $printing_lines = 0;
+         my $id = $1;
+         if ($split_ids)
+         {
+            $id =~ /(\S+)\s/;
+            $id = $1;
+         }
+         if ($ids{$id})
+         {
+            $printing_lines = 1;
+         }
+      }
+      if ($printing_lines)
+      {
+        print "$_\n";
+      }
+   }
+}
+

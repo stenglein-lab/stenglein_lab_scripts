@@ -1,0 +1,59 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $usage = <<USAGE;
+
+  This script re-outputs a tab-delimited file in a fixed column width format
+  with tabs replaced by a variable number of spaces.  The motivation for this
+  was to output tsv files in a format that is easier to read on terminal screens.
+
+  Note that the script reads the file entirely through once before re-reading it 
+  for output so it could be slow on big files.
+
+  Reads from a file and outputs to stdout.
+
+  usage: $0 <tab_delimited_file>
+
+USAGE
+
+my %max_field_lengths = ();
+
+my $filename = shift or print $usage and die ($!);
+
+open (my $fh, "<", $filename) or print $usage and die ($!);
+
+# read file once keeping track of field lenghts
+while (<$fh>)
+{
+   chomp;
+   my @fields = split "\t";
+   my $field_number = 0;
+   foreach my $field (@fields)
+   {
+      if (!$max_field_lengths{$field_number} or (length $field > $max_field_lengths{$field_number}))
+      {
+         $max_field_lengths{$field_number} = length $field;
+      }
+      $field_number += 1;
+   }
+}
+
+
+# rewind file
+seek($fh, 0, 0);
+
+# read through again and output w/ fixed-width fields
+while (<$fh>)
+{
+   chomp;
+   my @fields = split "\t";
+   my $field_number = 0;
+   foreach my $field (@fields)
+   {
+      my $width = $max_field_lengths{$field_number} + 1;
+      printf "%-${width}s", $field;
+      $field_number += 1;
+   }
+   print "\n";
+}

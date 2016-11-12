@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+
+# output the fasta records common to a set of fasta files
+#
+# Mark Stenglein, Oct 5, 2011
+
+use strict;
+
+my @fhs = ();
+
+while (my $f = shift)
+{
+   open (my $fh, "<", $f) or die ($!);
+   push @fhs, $fh;
+}
+
+my %headers = ();
+my %seqs = ();
+
+my $file_counter = 0;
+foreach my $fh (@fhs)
+{
+   $file_counter++;
+   my $current_seq = undef
+   my $current_header = undef;
+
+   while (<$fh>)
+   {
+      chomp;
+      if (/^>/)
+      {
+         $headers{$_} += 1;
+         if (defined $current_seq)
+         {
+            $seqs{$current_header} = $current_seq;
+            $current_seq = "";
+         }
+         $current_header = $_;
+      }
+      else
+      {
+         $current_seq .= $_;
+      }
+   }
+
+   # EOF, hash seq of last record
+   if (defined $current_seq)
+   {
+      $seqs{$current_header} = $current_seq;
+      $current_seq = "";
+   }
+}
+
+foreach my $header (keys %headers)
+{
+   if ($headers{$header} == $file_counter)
+   {
+      print "$header\n$seqs{$header}\n";
+   }
+   else
+   {
+      # warn "$header\n$headers{$header}\n";
+   }
+}

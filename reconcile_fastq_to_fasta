@@ -1,0 +1,97 @@
+#!/usr/bin/perl
+
+# This script reads a fastq file and a fasta file
+# and outputs the fastq records that have corresponding
+# fasta entires.
+# 
+# It assumes that the fasta records are a subset of the 
+# fastq records 
+#
+# Mark Stenglein, June 15, 2011
+
+use strict;
+
+my $usage=<<USAGE;
+
+ This script reads a fastq file and a fasta file
+ and outputs the fastq records that have corresponding
+ fasta entires to standard output.
+
+ usage: reconcile_fastq_to_fasta <fastq_file> <fasta_file>
+
+USAGE
+
+if (scalar @ARGV == 0) { print $usage and exit; }
+
+my $fastq_fn = shift or print $usage or warn "error: missing required argument: fastq file\n$usage" and exit;
+my $fasta_fn = shift or print $usage or warn "error: missing required argument: fasta file\n$usage" and exit;
+
+open (my $fastq_fh, "<", $fastq_fn) or warn "error: couldn't open fastq file: $fastq_fn\n$usage" and exit;
+open (my $fasta_fh, "<", $fasta_fn) or warn "error: couldn't open fasta file: $fasta_fn\n$usage" and exit;
+
+my %fasta_headers = ();
+
+#TODO - make this configurable
+my $split_ids = 1;
+
+# First, parse fasta file and stick all headers in a hash
+while (<$fasta_fh>)
+{
+   chomp;
+   if (/^>/)
+   {
+      my $fasta_header = $_;
+      $fasta_header =~ s/>//;
+
+      if ($split_ids)
+      {
+         # only take part before 1st whitespace
+         if ($fasta_header =~ /(\S+)\s/)
+         {
+            $fasta_header = $1;
+         }
+      }
+
+      $fasta_headers{$fasta_header} = 1;
+   }  
+}
+
+# next, parse fastq file and output records if found
+# in corresponding fasta file
+my $printing_lines = 0;
+my $line_counter = 0;
+while (<$fastq_fh>)
+{
+   chomp;
+   $line_counter++;
+   if ($line_counter == 1)
+   {
+      if (!/^@/)
+      {
+         die ("error - was expecting 4-line fastq format.  line: $_\n");
+      }
+      $printing_lines = 0;
+      my $fastq_header = $_;
+      $fastq_header =~ s/@//;
+      if ($split_ids)
+      {
+         # only take part before 1st whitespace
+         if ($fastq_header =~ /(\S+)\s/)
+         {
+            $fastq_header = $1;
+         }
+      }
+      if ($fasta_headers{$fastq_header})
+      {
+         $printing_lines = 1;
+      }
+   }
+   elsif ($line_counter == 4)
+   {
+      $line_counter = 0;
+   }
+   if ($printing_lines)
+   {
+      print "$_\n";
+   }
+}

@@ -52,13 +52,11 @@ my %node_rank = ();
 my %node_parent = ();
 my %node_descendents = ();
 # TODO: make this setable by environmental variable or command line option
-my $tax_dir = "/home/databases/NCBI_Taxonomy";
+my $tax_dir = "/home/mdstengl/NCBI_Taxonomy";
+my $output_directory = undef;
 
 
 my $usage = <<USAGE;
-
-  This script will output records from a fasta file into subset files based on blast-alignment-based taxonomic assignment.  
-  It creates one file per taxon.
 
   USAGE: $0 -h [-c min_tally] [-e max_evalue] [-v] [[-t taxid1 ... ] OR [-f taxid_file]] <fasta_file> <blast_output_file> 
 
@@ -70,6 +68,8 @@ my $usage = <<USAGE;
   -c <min_tally>    only output if number hits for this taxid is above this cutoff
 
   -e <max_evalue>   only output a fasta record if the corresponding hit's evalue is below this cutoff
+
+  -od <output_dir>  new files will be written to this directory
 
   -v                only output virus taxids (default = no)
   
@@ -84,14 +84,15 @@ GetOptions ("h" => \$print_usage,
             "f=s" => \$taxid_file, 
             "c=s" => \$min_tally, 
             "e=s" => \$max_evalue, 
+            "od=s" => \$output_directory, 
             "t=s" => \@taxids_to_filter_array);
 
 if ($print_usage) { print $usage; exit; }
 
-## if ($taxid_file && @taxids_to_filter_array)
-## {
-   ## die ("Error: either specify taxids with -t option or -f option\n");
-## }
+if ($taxid_file && @taxids_to_filter_array)
+{
+   die ("Error: either specify taxids with -t option or -f option\n");
+}
 
 my $taxid_fh = undef;
 if ($taxid_file)
@@ -109,14 +110,15 @@ if ($taxid_fh)
       # ignore commented out lines
       if (!/^\s*#/)
       {
-         my @fields = split "\t";
+         # my @fields = split "\t";
+         my @fields = split /\s+/;  # split on whitespace
          my $taxid_to_filter = $fields[0];
+         warn "TAXID: $taxid_to_filter\n";
          $taxids_to_filter{$taxid_to_filter} += 1;
       }
    }
 }
-
-if (@taxids_to_filter_array)
+elsif (@taxids_to_filter_array)
 {
    foreach my $t (@taxids_to_filter_array)
    {
@@ -127,23 +129,18 @@ if (@taxids_to_filter_array)
 # are we only outputing a subset of TAXIDS?
 my $output_taxid_subset =  keys %taxids_to_filter;
 
-
 # parse flat file w/ NCBI Taxonomy db tree structure (nodes.dmp)
-parse_nodes();
+# parse_nodes();
 
 # are any of the taxids upper level? (not species/leaf level)
-foreach my $t (keys %taxids_to_filter)
-{
-	warn "TAXID: $t\n";
-	if ($node_descendents{$t})
-	{
-      my @descendents = @{$node_descendents{$t}};
-      if (scalar @descendents)
-      {
-         $higher_level_taxids{$t} = 1;
-      }
-	}
-}
+# foreach my $t (keys %taxids_to_filter)
+# {
+   # # my @descendents = @{$node_descendents{$t}};
+   # if (scalar @descendents)
+   # {
+      # $higher_level_taxids{$t} = 1;
+   # }
+# }
 
 # initialize some maps
 my %gi_to_taxid_map = ();
@@ -165,81 +162,90 @@ while ($fasta_file && $blast_file)
 
    if ($blast_fh && $fasta_fh)
    {
-      warn "parsing BLAST output file $blast_file\n";
+      warn "parsing GSNAP output file\n";
+
+      my $query = undef;
+      my $top_query_hit_encountered = 0;
+
       # read blast output file 
       # Keep track of the GIs of the best hits for each query
       LINE: while (<$blast_fh>)
       {
          # TODO: keep track of best hit for each query
-         if (/^\s*#/)
+         if ((/^\s*#/) or (/^\s*$/))
          {
-            # ignore comment (first) lines
+            # ignore comment and blank lines
             next LINE;
          }
-         chomp;
-         my @fields = split "\t";
-         if (scalar (@fields) == 12)
+         elsif (/^>/)
          {
-            # this is the format we expect
-            # The order of fields for BLAST result in tabular format is: 
-            # 0 query id, 1 database sequence (subject) id, 2 percent identity, 3 alignment length, 
-            # 4 number of mismatches, 5 number of gap openings, 6 query start, 7 query end, 
-            # 8 subject start, 9 subject end, 10 Expect value, 11 HSP bit score. 
-      
-            my $query = $fields[0];
-            # warn "processing hit for query: $query\n";
-            my $full_gi = $fields[1];
-            my $bit_score = $fields[11];
-      
-            my $best_bitscore = $queries{$query}{best_bitscore};
-            if ((!$best_bitscore) || ($bit_score >= $best_bitscore))
+            $top_query_hit_encountered = 0;
+
+            chomp;
+            my @fields = split "\t";
+            if (scalar @fields == 4)
             {
-               $queries{$query}{best_bitscore} = $bit_score;
-               if ((!$best_bitscore) || ($bit_score > $best_bitscore))
-               {
-                  $queries{$query}{best_gis} = [ ];
-               }
-               if ($full_gi =~ /gi\|(\d+)|/)
-               {
-                  push @{ $queries{$query}{best_gis} }, $1;
-               }
-               else
-               {
-                  die ("unexpected GI format for GI: $full_gi\n");
-               }
+               $query = $fields[3];
             }
+            elsif (scalar @fields == 3)
+            {
+               $query = $fields[2];
+            }
+            else
+            {
+               die "unexpected format for line in GSNAP output: $_\n";
+            }
+            if ($query =~ /(\S+)\s+/)
+            {
+               $query = $1;
+            }
+            # warn "q: $query\n";
+            @{$queries{$query}{best_gis}} = (); 
          }
-         else
+         elsif (!$top_query_hit_encountered)
          {
-            warn ("ignoring line with unexpected number of fields in BLAST output: $_\n");
-            # die ("unexpected number of fields in BLAST output: $_\n");
+            chomp;
+            $top_query_hit_encountered = 1; 
+            my @fields = split "\t";
+            # warn "processing hit for query: $query\n";
+            # TODO - only take best scoring hit?
+            # TODO - don't only take the top hit
+            my $full_gi = $fields[2];
+            if ($full_gi =~ /[+-]gi\|(\d+)|/)
+            {
+               push @{$queries{$query}{best_gis}}, $1;
+            }
+            else
+            {
+               die ("unexpected GI format for GI: $full_gi\n");
+            }
          }
       }
       
-      warn "creating tallies for each taxid\n";
+      warn "determing TAXIDs for GIs\n";
+      my $gi_counter = 0;
+
       # iterate through best hits and tally scores for TAXIDs
       my %taxid_tally = ();
-      my $query_counter = 0;
-      my $num_queries = scalar keys %queries;
       foreach my $query (keys %queries)
       {
-         $query_counter += 1;
-         if ($query_counter % 10000 == 0)
-         {
-            warn  "query #: $query_counter / $num_queries \n";
-         }
          my @gis = @{$queries{$query}{best_gis}};
          my $number_hits = scalar (@gis);
-
+     
          foreach my $gi (@gis)
          {
+            $gi_counter += 1;
+            if ($gi_counter % 5000 == 0)
+            {
+               warn  "gi #: $gi_counter\n";
+            }
             my $taxid = $gi_to_taxid_map{$gi};
             if (!defined $taxid)
             {
                my @taxids = gi_to_taxid::gi_to_taxid($gi);
                $taxid = $taxids[0];
             }
-            if ((!$taxid)||(length($taxid) == 0))
+            if ((!defined $taxid)||(length($taxid) == 0))
             {
                $taxid = "unknown_taxid";
             }
@@ -269,7 +275,6 @@ while ($fasta_file && $blast_file)
             {
                warn "record: $record_counter\n";
             }
-
             @current_fhs = ();
             @current_taxids = ();
       
@@ -296,7 +301,7 @@ while ($fasta_file && $blast_file)
                   my $taxid = $gi_to_taxid_map{$gi};
                   if (!$taxid)
                   {
-                     die ("error: should already have a taxid for GI: $gi\n");
+                     warn ("error: should already have a taxid for GI: $gi\n");
                      # my @taxids = gi_to_taxid::gi_to_taxid($gi);
                      # $taxid = $taxids[0];
                      # $gi_to_taxid_map{$gi} = $taxid;
@@ -314,21 +319,20 @@ while ($fasta_file && $blast_file)
                   # determine if this taxid is a descendent of a higher-level TAXID
                   # we are going to output
                   # First, Are we outputing any higher-level taxids?
-                  if (scalar keys %higher_level_taxids)
+                  #### if (scalar keys %higher_level_taxids)
+                  if (0)
                   {
-							my $parent_taxid = $taxid;
                      # is this taxid a descendent of a higher level taxid to be output?
                      # if so, aggregate to that 
-                     while ($parent_taxid = $node_parent{$parent_taxid})
+                     while (my $parent_taxid = $node_parent{$taxid})
                      {
-								warn "PARENT: $parent_taxid\n";
                         if ($higher_level_taxids{$parent_taxid})
                         {
                            # this is a descendent 
                            push @this_query_taxids, $parent_taxid;
                         }
                         # 1 is root node of taxonomy tree
-                        if ((!defined $parent_taxid) or ($parent_taxid == 1))
+                        if ($parent_taxid == 1)
                         {
                            last;
                         }
@@ -378,7 +382,7 @@ while ($fasta_file && $blast_file)
                      my $desc = $taxid_to_desc_map{$this_query_taxid};
                      if ((!$desc)||(length ($desc) == 0))
                      {
-                        my @descs = taxid_to_description::taxid_to_description($this_query_taxid);
+                        my @descs = taxid_to_description::taxid_to_description($taxid);
                         $desc = $descs[0];
                         if ((!$desc)||(length ($desc) == 0))
                         {
@@ -399,8 +403,15 @@ while ($fasta_file && $blast_file)
                      my $fh = $taxid_fh_map{$this_query_taxid};
                      if (!$fh)
                      {
-                        # my $filename = "distributed/".$taxid."_".$desc.".fa";
                         my $filename = $fasta_file."_".$this_query_taxid."_".$desc.".fa";
+                        if (defined $output_directory)
+                        {
+                           if (! -d $output_directory)
+                           {
+                              mkdir ($output_directory);
+                           }
+                           $filename = $output_directory."/".$filename;
+                        }
                         open ($fh, ">", $filename) or die ("error couldn't open filehandle for file $filename\n");
                         $taxid_fh_map{$this_query_taxid} = $fh;
                      }

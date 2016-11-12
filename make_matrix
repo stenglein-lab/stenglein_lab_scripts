@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+
+#  This script makes a matrix from a series of tab delimited data files
+# 
+#  Assumed format of files: data_label<tab>data
+# 
+#  The row names will be in the first column and will be the data_labels
+#  The column names will be in the first row and will be the names of the files
+#
+#  Mark Stenglein, November 5, 2015
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  This script makes a matrix from a series of tab delimited data files
+
+  Assumed format of files: data_label<tab>data
+
+  The row names will be in the first column and will be the data_labels
+  The column names will be in the first row and will be the names of the files
+
+  Writes to stdout
+
+
+  usage: $0 [-h] [-c cutoff] file1 file2 ...
+
+  -h           print this help message
+
+  -c cutoff    only include a row of data if at least one of the values is above this cutoff threshhold 
+
+  -a           Sort rows by row name alphabetically (default is to sort by sum of values in row)
+  
+  file1...     tab delimited data files
+
+
+  Mark Stenglein, November 5, 2015
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit; }
+
+my $print_usage = 0;
+my $cutoff = 0;
+my $alphabetic_sort = 0;
+
+GetOptions ("h" => \$print_usage, "c=s" => \$cutoff, "a" => \$alphabetic_sort);
+
+if ($print_usage) { print $usage; exit }
+
+# keep track of file input order
+my @filenames = ();
+my %data_label_tallies = ();
+
+my %matrix = ();
+
+# collect data for matrix, one file at a time
+while (my $tally_fn = shift)
+{
+   push @filenames, $tally_fn;
+   open (my $tally_fh, "<", $tally_fn) or print $usage and die;
+   TALLY_LINE: while (<$tally_fh>)
+   {
+      chomp;
+      my ($data_label, $value) = split;
+      $matrix{$tally_fn}{$data_label} = $value;
+      $data_label_tallies{$data_label} += $value;
+   }
+   close ($tally_fh);
+}
+
+# output matrix
+
+# first line
+foreach my $filename (@filenames)
+{
+   print "\t$filename";
+}
+print "\n";
+
+my @sorted_data_labels = ();
+
+if ($alphabetic_sort)
+{
+   # sort rows by sum of values in the rows 
+   @sorted_data_labels = ( sort {lc($a) cmp lc ($b) } keys %data_label_tallies);
+}
+else
+{
+   # sort rows by sum of values in the rows 
+   @sorted_data_labels = (sort {$data_label_tallies{$b} <=> $data_label_tallies{$a}} keys %data_label_tallies);
+}
+
+# one line for each data_label
+ROW: foreach my $data_label (@sorted_data_labels)
+{
+   # first check to see if at least 1 value above cutoff
+
+   if ($cutoff)
+   {
+      foreach my $filename (@filenames)
+      {
+         if ($matrix{$filename}{$data_label} > $cutoff)
+         {
+            last;  # break out of for loop
+         }
+      }
+      # if made it here, no values above cutoff - skip to next row
+      next ROW;
+   }
+
+   print "$data_label";
+
+   foreach my $filename (@filenames)
+   {
+      printf "\t%0.1f", $matrix{$filename}{$data_label};
+   }
+   print "\n";
+}

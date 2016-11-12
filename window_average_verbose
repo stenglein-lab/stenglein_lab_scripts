@@ -1,0 +1,179 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $window_size = 10;
+my $offset = 1;
+my $print_usage = 0;
+my $print_window_start = 0;
+my $output_median = 0;
+
+my $usage = <<USAGE;
+
+  This script takes a file of tab-delimited data and averages the values in windows
+  of specified length and offset (offset of starting positions).
+
+  The script assumes the file is in a histogram-like format, where the first column
+  specifies the "X" coordinate and the second column the "Y" coordinate. 
+
+  By default the mean Y value is output but you can use the -m option to output the median instead
+
+  Reads from stdin.  Prints to stdout.
+
+  Mark Stenglein Dec 18, 2013
+
+
+  usage: $0 [-h] [-m] [-w tile_size] [-o offset] file
+
+  [-h]             print this message
+
+  [-m]             output median value for windows instead of mean value, which is default
+
+  [-w window_size] specify window size (default = $window_size)
+
+  [-o offset]      specify offset between window start points (default = $offset)
+
+USAGE
+
+# no args, no input
+if ( -t STDIN and not @ARGV) { print $usage and exit; }
+
+GetOptions ( "h" => \$print_usage,
+             "w=i" => \$window_size,
+             "m" => \$output_median,
+             "o=i" => \$offset);
+
+if ($window_size <= 0) { print "error: invalid tile size: $window_size\n" and exit; }
+if ($offset <= 0)      { print "error: invalid offset:  $offset\n" and exit; }
+
+if ($print_usage) { print $usage and exit; }
+
+my %data = ();
+my $max_x = undef;
+my $min_x = undef;
+
+while (<>)
+{
+   chomp;
+   my @data = split;
+   my $x = $data[0];
+   my $y = $data[1];
+   # store it all in a hash
+   # uses more memory but script is simpler
+   $data{$x} = $y;
+   if (!$max_x)
+   {
+      # first data point
+      $min_x = $x;
+      $max_x = $x;
+   }
+   if ($x < $min_x) { $min_x = $x; }
+   if ($x > $max_x) { $max_x = $x; }
+}
+
+for (my $window_start = $min_x; $window_start <= ($max_x - $window_size); $window_start += $offset)
+{
+  my $sum = 0;
+  my $count = 0;
+  my @values = ();
+  for (my $i = 0; $i < $window_size; $i++)
+  {
+     my $x = $window_start + $i;
+     if ($data{$x})
+     {
+        # $sum += $data{$x};
+        push @values, $data{$x};
+        $count += 1;
+     }
+  }
+  if ($count > 0)
+  {
+     my $average = undef;
+     if ($output_median)
+     {
+        my $median = median(@values);
+        print "$window_start\t$median\n";
+        # if ($median > 500) { print "big #s:\t"; print join ("\t", @values); print "\n"; }
+     }
+     else
+     {
+        my $mean = mean(@values);
+        print "$window_start\t$mean\n";
+     }
+  }
+}
+
+
+# Return mean value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+sub mean
+{
+   my $sum = 0;
+   my $count = 0;
+   foreach my $val (@_)
+   {
+      $sum += $val;
+      $count += 1;
+   }
+   if ($count == 0)
+   {
+      return undef;
+   }
+   my $mean = $sum / $count;
+   return $mean;
+}
+
+# Return median value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+# Also assumes no NA (missing) values in the input
+#
+sub median
+{
+    my @vals = sort {$a <=> $b} @_;
+    my $len = @vals;
+    if($len%2) #odd?
+    {
+        return $vals[int($len/2)];
+    }
+    else #even
+    {
+        return ($vals[int($len/2)-1] + $vals[int($len/2)])/2;
+    }
+}
+
+# Calculate standard deviation of a list
+# of numeric values
+sub standard_deviation
+{
+   my @a = @_;
+   if (@a == 0) { return undef; }
+   my $sum = 0;
+   my $n = 0;
+   foreach my $val (@a)
+   {
+      $sum += $val;
+      $n++;
+   }
+   my $mean = $sum / $n;
+   my $sum_delta_squared = 0;
+   foreach my $val (@a)
+   {
+      my $delta = $val - $mean;
+      my $delta_squared = $delta * $delta;
+      $sum_delta_squared += $delta_squared;
+   }
+   # divide by n-1 for "sample standard deviation"
+   # avoid division by zero
+   if ($n <= 1) { return undef; }
+   my $variance = $sum_delta_squared / ($n-1);
+   my $standard_deviation = $variance ** 0.5;
+   return $standard_deviation;
+}
+

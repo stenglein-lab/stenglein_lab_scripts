@@ -1,0 +1,108 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $window_size = 400;
+my $offset = 50;
+my $print_usage = 0;
+my $print_window_start = 0;
+
+my $usage = <<USAGE;
+
+  This script takes sequences in a fasta file and converts them into sub-sequences
+  of specified length and offset (offset of starting positions).
+
+  The subsequences will be named like the original sequences with _N appended,
+  where _N is the tile number.
+
+  Prints to stdout.
+
+  Mark Stenglein Dec 18, 2013
+
+
+  usage: make_sliding_fasta_tiles [-h] [-w tile_size] [-o offset] fasta_file
+
+  [-h]            print this message
+
+  [-w tile_size]  specify size of subsequences (default = $window_size)
+
+  [-o offset]     specify offset between subsequence start points (default = $offset)
+
+  [-s]            print tile start position as fasta header instead of usual header (original_name_tile_#)
+
+
+USAGE
+
+# no args, no input
+if ( -t STDIN and not @ARGV) { print $usage and exit; }
+
+GetOptions ( "h" => \$print_usage,
+             "w=i" => \$window_size,
+             "s" => \$print_window_start,
+             "o=i" => \$offset);
+
+if ($window_size <= 0) { print "error: invalid tile size: $window_size\n" and exit; }
+if ($offset <= 0)      { print "error: invalid offset:  $offset\n" and exit; }
+
+if ($print_usage) { print $usage and exit; }
+
+my $header = undef;
+my $seq = undef;
+
+while (<>)
+{
+   chomp;
+   if (/>(.*)/)
+   {
+      if ($seq)
+      {
+         output_seq_tiles($header, $seq);
+      }
+      $header = $1;
+      $seq = undef;
+      next;
+   }
+   $seq .= $_;
+}
+
+# last record
+if ($seq)
+{
+   output_seq_tiles($header, $seq);
+}
+
+sub output_seq_tiles
+{
+   my ($header, $seq) = @_;
+   my $window = $window_size;
+   my $start = 0;
+   my $seq_length = length $seq;
+   my $i = 1;
+   my $last_one = 0;
+   
+   for ($start = 0 ; $start < $seq_length; $start += $offset)
+   {
+      my $end = $start + $window;
+      if ($end > $seq_length)
+      {
+         $window = $seq_length - $start;
+         $last_one = 1;
+      }
+      my $sub_seq = substr($seq, $start, $window);
+      if ($print_window_start)
+      {
+         my $start_nt = $start + 1;
+         print ">$start_nt\n";
+      }
+      else
+      {
+         print ">$header";
+         print "_$i\n";
+      }
+      print "$sub_seq\n";
+      if ($last_one) { last; }
+      $i++;
+   }
+}
+

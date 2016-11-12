@@ -1,0 +1,106 @@
+#!/usr/bin/perl
+
+use GraphViz;
+use Data::Dumper;
+use strict;
+use Getopt::Long;
+
+# TODO: different output formats
+# TODO: directed or not
+
+my $usage = <<USAGE;
+
+ This script takes as input a blast output file (in -m8 format)
+ and outputs in postscript format a postscript representation of
+ hits between blast hits and queries.
+
+ Reads from stdin and writes to stdout.
+
+ Depends on the GraphViz perl module, available from:
+ http://search.cpan.org/~rsavage/GraphViz-2.14/
+
+ Mark Stenglein Apr 2, 2013
+
+ usage: blastmap [-h] [-b min_bitscore] <blast_results_file>
+
+   -h               print this message
+
+   -b min_bitscore  blast alignments with bitscores lower than this will
+                    be ignored.  Default = no such minimum.
+
+USAGE
+
+if (scalar @ARGV == 0) { print $usage and exit;}
+
+my $print_usage = 0;
+my $min_bitscore = undef;
+
+GetOptions("b=s" => \$min_bitscore, "h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit;}
+
+my $graph = GraphViz->new(width => 7.5, 
+                         height => 10, 
+                         random_start => 1, 
+                         concentrate => 1,
+                         layout => 'circo');
+my %hitmap = ();
+my %hitmap_done = ();
+
+warn "parsing blast results\n";
+
+HIT: while (<>)
+{
+   chomp;
+   my @fields = split "\t";
+   my $query = $fields[0];
+   my $subject = $fields[1];
+   my $bitscore = $fields[11];
+   if ($subject eq $query) { next HIT; }
+   # don't repeat hits (TODO: could change this)
+   if (!$hitmap_done{$subject}{$query} && !$hitmap_done{$query}{$subject})
+   {
+      $hitmap_done{$subject}{$query} = 1;
+      @{$hitmap{$subject}{$query}} = @fields;
+   }
+   # $hitmap{$subject}{$query} = $bitscore;
+}
+
+warn "constructing graph\n";
+foreach my $subject (keys %hitmap)
+{
+   foreach my $query (keys %{$hitmap{$subject}})
+   {
+      my @fields = @{$hitmap{$subject}{$query}};
+      my $bitscore = $fields[11];
+      my $pct_id = $fields[2];
+      my $length = $fields[3];
+
+      # my $bitscore = $hitmap{$subject}{$query};
+      warn "$query --> $subject : $bitscore \n";
+
+      if ($min_bitscore && ($bitscore <= $min_bitscore))
+      {
+         next;
+      }
+
+      $graph->add_node($subject, 
+                       fontsize => '14',
+                       fontname => 'Helvetica',
+                       shape => 'box');
+      $graph->add_node($query, 
+                       fontsize => '14',
+                       fontname => 'Helvetica',
+                       shape => 'box');
+      my $edge_label = sprintf "%i / %i", $pct_id , $length;
+      $graph->add_edge($query => $subject,
+                       fontsize => '14',
+                       fontname => 'Helvetica',
+                       label => $edge_label);
+
+   }
+}
+
+warn "outputing graph\n";
+# print graph to stdout
+print $graph->as_ps;

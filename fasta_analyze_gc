@@ -1,0 +1,125 @@
+#!/usr/bin/perl
+
+# calculate mean, median, and stdev of 
+# GC content of sequences in a fasta file
+#
+# Mark Stenglein, July 9, 2011
+
+use strict;
+
+# read fasta files from stdin
+while (my $fasta_file = shift)
+{
+   open (my $fasta_fh, "<", $fasta_file) or print "error: couldn't open fasta file $fasta_file\n" and die($!);
+
+   my $seq = undef;
+   my @seqs = ();
+   while (<$fasta_fh>)
+   {
+      chomp;
+      if (/>/)
+      {
+         if (defined $seq)
+         {
+            push @seqs, $seq;
+         }
+         $seq = "";
+      }
+      else
+      {
+         $seq .= $_;
+      }
+   }
+   close $fasta_fh;
+   # don't forget last sequence
+   if (defined $seq)
+   {
+      push @seqs, $seq;
+   }
+   
+   my @gc_contents = ();
+
+   foreach my $seq (@seqs)
+   {
+      my $UC = uc($seq);
+      my $length = length ($seq);
+      my $numsGCs = ($UC =~ tr/GC/gc/);
+      my $percentGC = ($numsGCs/$length)*100;
+      my $rounded = sprintf("%d", $percentGC);
+      push @gc_contents, $rounded;
+   }
+
+   my $mean = mean(@gc_contents);
+   my $median = median(@gc_contents);
+   my $stdev = standard_deviation(@gc_contents);
+
+   print "file: $fasta_file\n";
+   printf "mean GC content:\t%0.1f\n", $mean;
+   printf "median GC content:\t%0.1f\n", $median;
+   printf "standard deviation:\t%0.1f\n", $stdev;
+}
+
+# Return mean value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+sub mean
+{
+   my $sum = 0;
+   my $count = 0;
+   foreach my $val (@_)
+   {
+      $sum += $val;
+      $count += 1;
+   }
+   if ($count == 0)
+   {
+      return undef;
+   }
+   my $mean = $sum / $count;
+   return $mean;
+}
+
+# Return median value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+# Also assumes no NA (missing) values in the input
+#
+sub median
+{
+   my @a = sort @_;
+   return ($a[$#a/2] + $a[@a/2]) / 2;
+}
+
+# Calculate standard deviation of a list
+# of numeric values
+sub standard_deviation
+{
+   my @a = @_;
+   if (@a == 0) { return undef; }
+   my $sum = 0;
+   my $n = 0;
+   foreach my $val (@a)
+   {
+      $sum += $val;
+      $n++;
+   }
+   my $mean = $sum / $n;
+   my $sum_delta_squared = 0;
+   foreach my $val (@a)
+   {
+      my $delta = $val - $mean;
+      my $delta_squared = $delta * $delta;
+      $sum_delta_squared += $delta_squared;
+   }
+   # divide by n-1 for "sample standard deviation"
+   # avoid division by zero
+   if ($n <= 1) { return undef; }
+   my $variance = $sum_delta_squared / ($n-1);
+   my $standard_deviation = $variance ** 0.5;
+   return $standard_deviation;
+}
+

@@ -1,0 +1,18 @@
+#!/usr/bin/perl
+
+use strict;
+
+my %scores = undef;
+
+while (<>)
+{
+   if (/AS:i:([0-9]+)/)
+   {
+      $scores{$1} += 1;
+   }
+}
+
+foreach my $score (sort {$a <=> $b} keys %scores)
+{
+   print "$score\t$scores{$score}\n";
+}

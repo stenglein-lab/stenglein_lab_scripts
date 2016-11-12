@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+
+use strict;
+
+## my $min_overall_depth = 20;
+
+my $min_variant_depth = 4;
+my $min_allele_freq = 0.01;
+
+while (<>)
+{
+   chomp;
+   # if (/^#/) { print "$_\n"; next; } #just re-output header lines
+
+	my @fields = split ",";
+	my $position = $fields[1];
+
+   my @matched_depths = ();
+   if (@matched_depths = /DP=(\d+).*AF=(\S+)\,SB=.*DP4=(\d+),(\d+),(\d+),(\d+)/)
+   {
+      if (scalar @matched_depths != 6)
+      {
+         warn "error: unexpected format in VCF for line $_\n"; exit;
+      } 
+
+      my ($depth, $allele_freq, $d1, $d2, $d3, $d4) = @matched_depths;
+
+      # if ($depth < $min_overall_depth) 
+      # {
+         # warn "insufficient depth: $_\n";
+         # next;
+      # }
+
+      my $variant_depth = $d3 + $d4;
+      if ($variant_depth < $min_variant_depth)
+      {
+         warn "insufficient variant depth: $_\n";
+         next;
+      }
+
+      if ($allele_freq < $min_allele_freq)
+      {
+         warn "insufficient allele_freq: $_\n";
+         next;
+      }
+
+      # print "$_\n";
+
+      print "$position\t$allele_freq\n";
+
+
+   }
+   else 
+   {
+      warn "ignoring line with unexpected format in VCF: $_\n"; 
+   }
+}

@@ -1,0 +1,127 @@
+#!/usr/bin/perl
+
+# output the fasta records common to a set of fasta files
+#
+# Mark Stenglein, Oct 5, 2011
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+my $header_regexp = undef;
+my $output_headers_only = 0;
+
+my $usage = <<USAGE;
+  
+  Outputs the fasta records common to a set of fasta files
+
+  Can specify a regular expression that allows you to use
+  part of the header line as the string to compare.  This
+  is useful for instance in the case of paired-read sequence
+  files (whose headers are different by :1/:2, etc.
+
+  Mark Stenglein 9.27.2012
+
+  usage: shared_fasta_records [-h] [-o] [-r regexp] <fasta_file1> <fasta_file2> ... <fasta_fileN>
+
+  -h         print this message
+
+  -o         only output headers, not seqs
+             default = output both
+             this default behavior only makes sense if the
+             fasta files have the same sequences for 
+             corresponding headers
+
+  -r regexp  specify a regular expression (see above).
+             should be quoted and have parentheses around
+             the portion of the header line you want to use.
+
+             for example: -r '(\\S+)\\s+' 
+             -> This will use everything in header line 
+             before first whitespace 
+
+             default: use whole header line
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit;}
+
+GetOptions("h" => \$print_usage,
+           "o" => \$output_headers_only,
+           "r=s" => \$header_regexp);
+
+if ($print_usage) {print $usage and exit;}
+
+my @fhs = ();
+
+while (my $f = shift)
+{
+   open (my $fh, "<", $f) or print "error: couldn't open file: $f\n" and exit;
+   push @fhs, $fh;
+}
+
+my %headers = ();
+my %seqs = ();
+
+my $file_counter = 0;
+foreach my $fh (@fhs)
+{
+   $file_counter++;
+   my $current_seq = undef
+   my $current_header = undef;
+
+   while (<$fh>)
+   {
+      chomp;
+      if (/^>/)
+      {
+         my $header = $_;
+         if ($header_regexp)
+         {
+            $header =~ /$header_regexp/;
+            $header = $1;
+         }
+         $headers{$header} += 1;
+         if (defined $current_seq)
+         {
+            if (!$output_headers_only)
+            {
+               $seqs{$current_header} = $current_seq;
+            }
+            $current_seq = "";
+         }
+         $current_header = $header;
+      }
+      else
+      {
+         $current_seq .= $_;
+      }
+   }
+
+   # EOF, hash seq of last record
+   if (defined $current_seq)
+   {
+      $seqs{$current_header} = $current_seq;
+      $current_seq = "";
+   }
+}
+
+foreach my $header (keys %headers)
+{
+   if ($headers{$header} == $file_counter)
+   {
+      if ($output_headers_only)
+      {
+         $header =~ s/>//;
+         print "$header\n";
+      }
+      else
+      {
+         print "$header\n$seqs{$header}\n";
+      }
+   }
+   else
+   {
+      # warn "$header\n$headers{$header}\n";
+   }
+}

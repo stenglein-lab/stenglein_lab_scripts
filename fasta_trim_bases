@@ -1,0 +1,116 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Std;
+
+my $usage = "fasta_trim_bases [-5 5_prime_bases_to_trim] [-3 3_prime_bases_to_trim]\n\ttrims specified number of bases from the 5' or 3' end of fasta/q sequenes.\n\treads from stdin and outputs trimmed fasta/q records to stdout\n";
+
+if (scalar @ARGV == 0)
+{
+   print $usage and exit;
+}
+
+my %args;
+my $five_p_bases_to_trim = 0;
+my $three_p_bases_to_trim = 0;
+
+getopt('5:3:', \%args);
+
+if ($args{5})
+{
+   $five_p_bases_to_trim = $args{5};
+}
+if ($args{3})
+{
+   $three_p_bases_to_trim = $args{3};
+}
+
+## print "going to trim 5': $five_p_bases_to_trim\t3: $three_p_bases_to_trim\n";
+
+my $header = undef;
+my $seq = undef;
+my $qual_header = undef;
+my $qual_seq = undef;
+my $found_qual_header = undef;
+
+while (<>)
+{
+   chomp;
+   if (/^[>@]/)
+   {
+      if (defined $header)
+      {
+         if ($three_p_bases_to_trim > 0)
+         {
+            $seq = substr $seq, $five_p_bases_to_trim, -$three_p_bases_to_trim;
+            if ($found_qual_header)
+            {
+               $qual_seq = substr $qual_seq, $five_p_bases_to_trim, -$three_p_bases_to_trim;
+            }
+         }
+         else
+         {
+            $seq = substr $seq, $five_p_bases_to_trim;
+            if ($found_qual_header)
+            {
+               $qual_seq = substr $qual_seq, $five_p_bases_to_trim;
+            }
+         }
+         if ($found_qual_header)
+         {
+            print "$header\n$seq\n$qual_header\n$qual_seq\n";
+         }
+         else
+         {
+            print "$header\n$seq\n";
+         }
+      }
+      $found_qual_header = 0;
+      $header = $_;
+      $seq = "";
+      $qual_seq = "";
+   }
+   elsif (/^\+/)
+   {
+      # this is a fastq file, apparently
+      $found_qual_header = 1;
+      $qual_header = $_;
+   }
+   elsif ($found_qual_header)
+   {
+      $qual_seq .= $_;
+   }
+   else  
+   {
+      $seq .= $_;
+   }
+}
+
+# don't forget last seq
+if (defined $header)
+{
+   if ($three_p_bases_to_trim > 0)
+   {
+      $seq = substr $seq, $five_p_bases_to_trim, -$three_p_bases_to_trim;
+      if ($found_qual_header)
+      {
+         $qual_seq = substr $qual_seq, $five_p_bases_to_trim, -$three_p_bases_to_trim;
+      }
+   }
+   else
+   {
+      $seq = substr $seq, $five_p_bases_to_trim;
+      if ($found_qual_header)
+      {
+         $qual_seq = substr $qual_seq, $five_p_bases_to_trim;
+      }
+   }
+   if ($found_qual_header)
+   {
+      print "$header\n$seq\n$qual_header\n$qual_seq\n";
+   }
+   else
+   {
+      print "$header\n$seq\n";
+   }
+}

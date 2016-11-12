@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+
+# convert Us to Ts in a fasta sequence
+
+use strict;
+
+while (<>)
+{
+   chomp;
+   if (/^>/)
+   {
+      print "$_\n";
+   }
+   else
+   {
+      tr/uU/tT/;
+      print "$_\n";
+   }
+}
+

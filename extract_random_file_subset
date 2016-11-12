@@ -1,0 +1,55 @@
+#!/usr/bin/perl 
+
+#
+# This script will output a random subset of lines from a file
+#
+# Mark Stenglein, Oct 21, 2015
+#
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+my $n = 100;
+
+my $usage = <<USAGE;;
+
+ This script will output a random subset of lines from the input.
+
+ Reads from stdin writes to stdout.
+ 
+ By default ~1 / $n lines willbe output, but this fraction can be changed
+ by using the -n option.
+
+
+ Mark Stenglein Oct 21, 2015
+
+
+ usage: extract_random_fasta_subset [-h] [-n denominator] 
+
+
+USAGE
+
+
+if (-t STDIN && @ARGV == 0) { print ($usage) and exit; }
+
+GetOptions ("h" => \$print_usage, "n=i" => \$n);
+
+if ($print_usage) { print ($usage) and exit; }
+
+if ($n <= 0)
+{
+  warn ("ERROR: invalid denominator: $n\n");
+  die ($usage);
+}
+
+
+while (<>)
+{
+   my $random_integer = int(rand($n));
+   # this simulates a one in $n chance of occuring
+   if ($random_integer == 1)
+   {
+      print "$_";
+   }
+}

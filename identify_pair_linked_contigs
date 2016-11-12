@@ -1,0 +1,226 @@
+#!/usr/bin/perl
+
+# a script to identify contigs (generically, blast db subjects)
+# that are linked by read pairs
+#
+# Mark Stenglein, Nov 2, 2011
+
+use strict;
+use Getopt::Long;
+
+my $max_evalue = 1e-6;
+my $print_usage = 0;
+my @fasta_files = ();
+my $header_regexp = "(\\S+)\\s+";
+my $blast_file_1 = undef;
+my $blast_file_2 = undef;
+
+
+
+
+
+my $usage = <<USAGE;
+
+  This script identifies contigs (generically, blast db subjects)
+  that are linked by read pairs.
+
+  $0 [-h] [-e max_evalue] [-r regexp] [-f <fasta_file> -f <fasta_file>] -b1 <blast_results_file_1> -b2 <blast_results_file_2>
+
+  -h                    print this message
+
+  -e  max_evalue        the max e-value for a hit to be considered
+                        [default = $max_evalue]
+
+  -r regexp             specify a regular expression for fasta header
+                        line.  should be quoted and have a pair
+                        of parentheses around the part of the
+                        header that will be shared between read 1 and 2
+           
+                        for example (and the default): 
+
+                            -r '(\\S+)\\s+' 
+
+                        -> This will use everything in header line 
+                        before first whitespace as the "core" of
+                        the header 
+
+  -f fasta_files        if these are specified, connecting read pairs
+                        will be output.  If all reads are in one fasta
+                        file, then use this flag once.  If the reads
+                        are in separate files, use this flag more than
+                        once.
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit;}
+
+GetOptions("h" => \$print_usage, 
+           "e=s" => \$max_evalue, 
+           "b1=s" => \$blast_file_1, 
+           "b2=s" => \$blast_file_2, 
+           "f=s" => \@fasta_files);
+
+if  ($print_usage) {print $usage and exit;}
+
+my @br_fhs = ();
+my @br_fns = ($blast_file_1, $blast_file_2);
+while (my $br_file = shift @br_fns)
+{
+   open (my $br_fh, "<", $br_file) or print $usage and 
+             die ("error: couldn't open blast result file: $br_file\n");
+
+   push @br_fhs, $br_fh;
+}
+
+# parse blast output
+warn "parsing blast output\n";
+my @fields = ();
+my %hits = ();
+my $read_number = 0;
+foreach my $fh (@br_fhs)
+{
+   $read_number++;
+   while (<$fh>)
+   {
+      chomp;
+      @fields = split "\t";
+      if ($fields[10] > $max_evalue)
+      {
+         next;
+      }
+      my $query = $fields[0];
+      my $subject = $fields[1];
+
+      my $query_core = $query;
+      # TODO: this was for old style Illumina formatting
+      # if still want to support, need to fix.  What a mess!
+      # $query_core =~ s/\/(\d)//;
+      # my $read_number = $1;
+
+      if ($hits{$subject}{$query_core}{$read_number}) 
+      {
+         # this query hits this subject more than once.
+         # what to do about this scenario?
+         # warn "query: $query hits $subject more than once\n";
+      }
+      else
+      {
+         $hits{$subject}{$query_core}{$read_number} = 1;
+         $hits{$subject}{$query_core}{tally} += $read_number;
+      }
+   }
+}
+
+# analyze blast output
+# pairwise check subjects with hits
+warn "analyzing blast output\n";
+my @subjects = keys %hits;
+my $num_subjects = scalar @subjects;
+
+my %connected_subjects = ();
+
+for (my $i = 0; $i < $num_subjects; $i++)
+{
+   my $subject_i = $subjects[$i];
+   # these are the queries that hit subject(i)
+   my @queries_i = keys %{$hits{$subject_i}};
+   for (my $j = ($i + 1) ; $j < $num_subjects; $j++)
+   {
+      my $subject_j = $subjects[$j];
+      foreach my $query (@queries_i)
+      {
+         if (defined $hits{$subject_j}{$query})
+         {
+            my $tally = $hits{$subject_i}{$query}{tally}+$hits{$subject_j}{$query}{tally};
+            if ($tally == 3)
+            {
+               # this is a situation where read 1 hit 1 subject and read 2 hit
+               # another
+               # keep track of the identity of connecting read pairs 
+               push @{$connected_subjects{$subject_i}{$subject_j}}, $query;
+            }
+         }
+      }
+   }
+}
+
+
+# now output connected pairs
+# could probably do this slighly more efficiently 
+# by only iterating through defined keys of hash
+# anyway, this works
+for (my $i = 0; $i < $num_subjects; $i++)
+{
+   my $subject_i = $subjects[$i];
+   for (my $j = ($i + 1) ; $j < $num_subjects; $j++)
+   {
+      my $subject_j = $subjects[$j];
+      if (defined $connected_subjects{$subject_i}{$subject_j})
+      {
+         my @connecting_queries = @{$connected_subjects{$subject_i}{$subject_j}};
+         my $num_connections = scalar @connecting_queries;
+         print "$subject_i and $subject_j are linked by $num_connections read pairs\n";
+         warn "$subject_i and $subject_j are linked by $num_connections read pairs\n";
+         # open fasta files, if appropriate for output
+         if (scalar @fasta_files > 0)
+         {
+            warn "outputing $num_connections connecting reads\n";
+            foreach my $ff (@fasta_files)
+            {
+               open (my $fh, "<", $ff) or die ("error: couldn't open fasta file $ff\n");
+               my $printing_lines = 0;
+               while (<$fh>)
+               {
+                  chomp;
+                  if (/^>/)
+                  {
+                     my $header = $_;
+                     $header =~ s/>//;
+                     if ($header_regexp)
+                     {
+                        $header =~ /$header_regexp/;
+                        $header = $1;
+                     }
+
+                     $printing_lines = 0;
+                     foreach my $connection (@connecting_queries)
+                     {
+                        if ($header eq $connection)
+                        {
+                           $printing_lines = 1;
+                           last;
+                        }
+                     }
+                  }
+                  if ($printing_lines)
+                  {
+                     print "$_\n";
+                  }
+               }
+            }
+         }
+         else
+         {
+            # just output the connecting reads
+            foreach my $connection (@connecting_queries)
+            {
+               print "$connection\n";
+            }
+         }
+      }
+   }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

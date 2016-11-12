@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+
+use Levenshtein;
+use strict;
+
+my $f1 = shift or die ($!);
+my $f2 = shift or die ($!);
+
+open (my $fh1, "<", $f1) or die ($!);
+open (my $fh2, "<", $f2) or die ($!);
+
+my @codes1 = ();
+my @codes2 = ();
+
+while (<$fh1>)
+{
+   chomp;
+   my $code = $_;
+   push @codes1, $code;
+}
+
+while (<$fh2>)
+{
+   chomp;
+   my $code = $_;
+   push @codes2, $code;
+}
+
+foreach my $c2 (@codes2)
+{
+   print "\t$c2";
+}
+print "\n";
+
+foreach my $c1 (@codes1)
+{
+   print "$c1";
+   foreach my $c2 (@codes2)
+   {
+      my $dist = Levenshtein::levenshtein($c1, $c2);
+      print "\t$dist";
+   }
+   print "\n";
+}
+

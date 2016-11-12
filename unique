@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+
+# given a list of strings in stdin, output a list of unique strings
+#
+# Mark Stenglein
+# August 22, 2011
+
+while (<>)
+{
+   chomp;
+   $list{$_} += 1;
+   if ($list{$_} == 1)
+   {
+      push @strings, $_;
+   }
+}
+
+foreach my $s (@strings)
+{
+   print "$s\n";
+}

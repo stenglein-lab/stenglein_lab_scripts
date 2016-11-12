@@ -1,0 +1,259 @@
+#!/usr/bin/perl
+
+# 
+# Analyze LZW scores of sequences in a fasta format file
+# Mark Stenglein, May 16, 2011
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+ outputs a histogram of LZW ratios of sequences in a fasta or fastq file
+
+ The LZW ratio is the ratio of the compressed sequence to the original 
+ uncompressed sequence (the lower the ratio, the more compressible it is,
+ and the less complex it is).  
+ 
+ LZW refers to Lempel-Ziv-Welch compression
+ (see: https://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Welch)
+
+ assumes 2-line fasta or 4-line fastq
+
+ reads from stdin and writes to stdout
+
+ usage: fasta_analyze_lzw [-h] [-l] fastx_file
+
+ options: 
+
+   -h     print this message
+
+   -l     list a table of sequence headers and LZW ratios not histogram
+
+USAGE
+
+# no stdin stream and no file specified
+if (-t STDIN and not @ARGV) {print $usage and exit;}
+
+my $list_ratios = 0;
+my $print_usage = 0;
+
+# get command line options
+GetOptions("h" => \$print_usage,
+           "l" => \$list_ratios);
+
+if ($print_usage) {print $usage and exit;}
+
+my %ratios = ();
+
+# initialize hash
+for (my $i = 0; $i < 60; $i++)
+{
+  $ratios{$i} = 0;
+}
+
+my $seq = undef;
+my $header = undef;
+my $fastq_file = 0;
+my $line_count = 0;
+my $first_line = 1;
+
+while (<>)
+{
+   chomp;
+   $line_count += 1;
+   if ($first_line)
+   {
+      $first_line = 0;
+      if (/^@/)
+      {
+         $fastq_file = 1;
+      }
+      elsif (!/^>/)
+      {
+         warn "\nerror - was expecting fasta or fastq input. First line = $_\n\n";
+         print $usage and exit;
+      }
+   }
+   if ($line_count == 1)
+   {
+      if (!$fastq_file and (!/^>/))
+      {
+         warn "\nerror - was expecting 2-line fasta input. Line = $_\n\n";
+         print $usage and exit;
+      }
+      elsif ($fastq_file and (!/^@/))
+      {
+         warn "\nerror - was expecting 4-line fastq input. Line = $_\n\n";
+         print $usage and exit;
+      }
+
+      # this is the header - process seq from previous record if defined
+      if (defined $seq)
+      {
+         my $lzw_ratio = LZWRatio($seq);
+         if ($list_ratios)
+         {
+            printf "%s\t%0.3f\n", $header,$lzw_ratio;
+         }
+         $ratios{$lzw_ratio} += 1;
+      }
+      # keep track of header for next output
+      $header = $_;
+      $header =~ tr/[>@]//;
+      # start new seq
+      $seq = "";
+   }
+   elsif ($line_count == 2)
+   {
+      # whether 2-line fasta or 4-line fastq, seq here
+      $seq = $_;
+   }
+
+   # assume 2-line fasta or 4-line fastq
+   if ((!$fastq_file) && ($line_count == 2))
+   {
+      $line_count = 0
+   }
+   elsif ($fastq_file && ($line_count == 4))
+   {
+      $line_count = 0
+   }
+
+}
+# process final record
+if (defined $seq)
+{
+   my $lzw_ratio = LZWRatio($seq);
+   if ($list_ratios)
+   {
+      printf "%s\t%0.3f\n", $header,$lzw_ratio;
+   }
+   $ratios{$lzw_ratio} += 1;
+}
+
+if ($list_ratios)
+{
+   exit;
+}
+
+my %ratio_histo = ();
+my $bin_size = 0.01;
+for (my $i = 0; $i < 100; $i++)
+{
+   my $bin_bottom = $bin_size * $i;
+   $ratio_histo{$bin_bottom} = 0;
+}
+
+RATIO: foreach my $ratio (sort {$a <=> $b} keys %ratios)
+{
+   for (my $i = 0; $i < 100; $i++)
+   {
+      my $bin_bottom = $bin_size * $i;
+      my $bin_top = $bin_bottom + $bin_size;
+      if (($ratio > $bin_bottom) && ($ratio <= $bin_top))
+      {
+         $ratio_histo{$bin_bottom} += $ratios{$ratio};
+         next RATIO;
+      }
+   }
+}
+
+# output a histogram of ratios
+for (my $i = 0; $i < 100; $i++)
+{
+   my $bin_bottom = $bin_size * $i;
+   my $freq = $ratio_histo{$bin_bottom};
+   print "$bin_bottom\t$freq\n";
+}
+
+
+
+## LZW compression related functions
+## code copied from http://www.merriampark.com/ldperl.htm
+#
+# How to use:
+# my @compressed = compress('TOBEORNOTTOBEORTOBEORNOT');
+# print "@compressed\n";
+# my $decompressed = decompress(@compressed);
+# print "$decompressed\n";
+#
+
+sub LZWSize
+{
+   # print "compressing $_[0]\n";
+   # my @c = compress ($_[0]);
+   # my $s = scalar (@c);
+   # print "size: $s\n" ;
+   return scalar (compress ($_[0]) );
+}
+
+sub LZWRatio
+{
+   my $string = $_[0];
+   my @compressed_string = compress ($string);
+   my $compressed_string_length = scalar @compressed_string;
+   my $ratio = $compressed_string_length / length ($string);
+   return $ratio;
+}
+
+# Compress a string to a list of output symbols.
+sub compress {
+    my $uncompressed = shift;
+ 
+    # Build the dictionary.
+    my $dict_size = 256;
+    my %dictionary = map {chr $_ => chr $_} 0..$dict_size-1;
+ 
+    my $w = "";
+    my @result;
+    foreach my $c (split '', $uncompressed) {
+        my $wc = $w . $c;
+        if (exists $dictionary{$wc}) {
+            $w = $wc;
+        } else {
+            push @result, $dictionary{$w};
+            # Add wc to the dictionary.
+            $dictionary{$wc} = $dict_size;
+            $dict_size++;
+            $w = $c;
+        }
+    }
+ 
+    # Output the code for w.
+    if ($w) {
+        push @result, $dictionary{$w};
+    }
+    return @result;
+}
+ 
+# Decompress a list of output ks to a string.
+sub decompress {
+    my @compressed = @_;
+ 
+    # Build the dictionary.
+    my $dict_size = 256;
+    my %dictionary = map {chr $_ => chr $_} 0..$dict_size-1;
+ 
+    my $w = shift @compressed;
+    my $result = $w;
+    foreach my $k (@compressed) {
+        my $entry;
+        if (exists $dictionary{$k}) {
+            $entry = $dictionary{$k};
+        } elsif ($k == $dict_size) {
+            $entry = $w . substr($w,0,1);
+        } else {
+            die "Bad compressed k: $k";
+        }
+        $result .= $entry;
+ 
+        # Add w+entry[0] to the dictionary.
+        $dictionary{$dict_size} = $w . substr($entry,0,1);
+        $dict_size++;
+ 
+        $w = $entry;
+    }
+    return $result;
+}

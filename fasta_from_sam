@@ -1,0 +1,190 @@
+#!/usr/bin/perl
+
+# given a bowtie output (SAM) file and fasta file(s) used as input
+# to bowtie, create a filtered output fasta file based on 
+# bowtie alignment results
+#
+# Mark Stenglein Feb 25, 2012
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  given a bowtie output (SAM) file and fasta file(s) used as input
+  to bowtie, create a filtered output fasta file based on 
+  bowtie alignment results
+ 
+  Mark Stenglein Apr 19, 2013
+
+usage: $0 [-h] [-f fasta_file] [-s min_score] [-r]  <sam_file>";
+
+   -h                 print this message. 
+
+   -s min_score       min alignment score.  Queries with scores < this will
+                      not be output.  Default = no min score. Any query 
+                      producing alignment will be output.
+
+   -r                 reverse of normal behavior - output all those records
+                      without a hit at or below the specified min score
+
+   -f fasta_file      the fasta file that was used as blast query
+                      if not specified, the name will be inferred from 
+                      the name of the SAM file
+USAGE
+
+#TODO - make this configurable
+my $split_ids = 1;
+
+my $print_usage = 0;
+my $min_score = undef;
+my $fasta_file = undef;
+my $output_misses = 0;
+
+if (scalar @ARGV == 0) { warn $usage and die; }
+
+GetOptions ( "h" => \$print_usage,
+             "s=s" => \$min_score, 
+             "r" => \$output_misses, 
+             "f=s" => \$fasta_file);
+
+if ($print_usage) { print $usage and exit;}
+
+while (my $sam_file = shift)
+{
+   open (my $sam_fh, "<", $sam_file) or print "error: couldn't open SAM results file: $sam_file\n$usage" and exit;
+
+   if (!$fasta_file)
+   {
+      # try to figure out fasta/q filename
+      $sam_file =~ /(.*\.(fasta|fastq|fq|fa))(?!.*\.(fasta|fastq|fq|fa))/;
+      $fasta_file = $1;
+   }
+   open (my $fasta_fh, "<", $fasta_file) or print "error: couldn't open fasta file: $fasta_file\n$usage" and exit;
+
+   my @fields = ();
+   my %ids = ();
+   # parse sam file, keeping track of query IDs
+   warn "parsing sam file: $sam_file\n";
+   while (<$sam_fh>)
+   {
+      chomp;
+   
+      if (/^@/)
+      {
+         # header lines - ignore
+         next;
+      }
+   
+      # split line into tab-delimited components
+      @fields = split "\t";
+   
+      # is this an unmapped query?
+      my $flag = $fields[1];
+      # see SAM format spec.
+      if ($flag & 4) { next; }
+
+      my $num_fields = scalar (@fields);
+      my @tags = @fields[11 .. ($num_fields-1)];
+      foreach (@tags)
+      {
+         if (/AS:i:([0-9]+)/)
+         {
+            my $alignment_score = $1;
+            if ($min_score && ($alignment_score < $min_score)) 
+            {
+               # this one outside of range
+               next;
+            }
+         }
+      }
+      my $id = $fields[0];
+      $ids{$id} = 1;
+   }
+
+   # read fasta/fastq file and output appropriate records
+
+   my $printing_lines = 0;
+   warn "parsing fasta/fastq file: $fasta_file\n";
+
+   my $seq = undef;
+   my $header = undef;
+   my $fastq_file = 0;
+   my $line_count = 0;
+   my $first_line = 1;
+
+   while (<$fasta_fh>)
+   {
+      chomp;
+      $line_count += 1;
+
+      # determine if fasta or fastq
+      if ($first_line)
+      {
+         $first_line = 0;
+         if (/^@/)
+         {
+            $fastq_file = 1;
+         }
+         elsif (!/^>/)
+         {
+            warn "\nerror - was expecting fasta or fastq input. First line = $_\n\n";
+            print $usage and exit;
+         }
+      }
+
+      if ($line_count == 1)
+      {
+         # parse header and determine whether to output record or not
+         if (!$fastq_file and (!/^>/))
+         {
+            warn "\nerror - was expecting 2-line fasta input. Line = $_\n\n";
+            print $usage and exit;
+         }
+         elsif ($fastq_file and (!/^@/))
+         {
+            warn "\nerror - was expecting 4-line fastq input. Line = $_\n\n";
+            print $usage and exit;
+         }
+   
+         if (/^[>@](.*)/)
+         {
+            $header = $1;
+         }
+
+         $printing_lines = 0;
+         my $id = $header;
+	      if ($split_ids)
+	      {
+	         $id =~ /(\S+)\s/;
+	         $id = $1;
+	      }
+
+         # warn "$id\n";
+         if ($ids{$id}) 
+         {
+            if (!$output_misses)
+            {
+               $printing_lines = 1;
+            }
+         }
+         elsif ($output_misses)
+         {
+            $printing_lines = 1;
+         }
+      }
+      elsif ($line_count == 2 and !$fastq_file)
+      {
+         $line_count = 0;
+      }
+      elsif ($line_count == 4 and $fastq_file)
+      {
+         $line_count = 0;
+      }
+
+      if ($printing_lines)
+      {
+        print "$_\n";
+      }
+   }
+}

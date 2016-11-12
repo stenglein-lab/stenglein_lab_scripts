@@ -1,0 +1,10 @@
+#!/bin/bash
+
+f=$1
+db=${f}.blastn_db
+
+makeblastdb -dbtype nucl -in $f -out /tmp/$db
+
+blastn -query $f -db /tmp/$db -evalue 1e-6 -task megablast -outfmt 6 
+
+rm -f /tmp/${db}*

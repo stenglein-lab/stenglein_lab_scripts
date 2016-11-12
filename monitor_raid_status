@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# This script monitors the status of the LSI RAID controller and HDDs using the MegaCli64 command
+#
+# Mark Stenglein 1/6/2015
+#
+
+mail_to_address="mark.stenglein@colostate.edu"
+
+# write all output to a file then output that file and mail to above address
+
+stat_file=raid_status.txt
+rm -f $stat_file
+
+hn=`hostname`
+now=`date`
+echo "RAID status report for server $hn on $now" > $stat_file
+
+# check RAID state
+MegaCli64 -LDInfo -Lall -aALL -NoLog | grep -i 'State\|Permission'  > $stat_file
+
+# check state of physical drives
+# MegaCli64 -PDList -aALL -NoLog | grep -i 'Firmware state\|S.M.A.R.T'
+MegaCli64 -PDList -aALL -NoLog | grep -i 'Firmware state' >> $stat_file
+
+cat $stat_file 
+cat $stat_file | mail -s "RAID status for $hn" $mail_to_address
+
+

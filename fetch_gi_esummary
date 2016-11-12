@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+#
+# given an input file containing nucleotide GI accessions, this script will 
+# retreive the results of a esummary query from an NCBI database
+#
+# TODO: modularize and make this more flexible 
+#
+# Mark Stenglein
+# December 15, 2010
+
+use LWP::Simple;
+use Time::HiRes;
+# use XML::Simple;
+ 
+# first, read the GIs from file
+# assume they are listed one per line in stdin
+my @ids = ();
+my $id_count = 0;
+my $params = { 'db' => 'protein' };
+# my $params = { 'db' => 'nucleotide' };
+
+while (<>)
+{
+   chomp;
+   my $id = $_;
+   $id_count++;
+   push (@ids, $id);
+   # fetch 500 at a time
+   if ($id_count % 200 == 0)
+   {
+      # print STDERR "$id_count ";
+      # warn (".");
+      $params->{ids} = \@ids;
+      @params_hashref_array = (\%params);
+      fetch_one_batch(@params_hashref_array);
+      # fetch_one_batch(@ids);
+      @ids = ();
+   }
+}
+# fetch remaining gis
+$params->{ids} = \@ids;
+@params_hashref_array = (\%params);
+fetch_one_batch(@params_hashref_array);
+#fetch_one_batch(@ids);
+
+# here, actually fetch data from NCBI
+sub fetch_one_batch()
+{
+   my $param_ref = $_[0];
+   my %params = %$param_ref;
+   my @ids = @{$params->{ids}};
+   my $db = $params->{db};
+
+   # construct url
+   # TODO: make this work for any NCBI db
+   my $base_url = "http://www.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=${db}&tool=fetch_gi_summary&email=markstenglein@yahoo.com";
+   my $id_url = "&id=";
+   foreach my $id (@ids)
+   {
+      $id_url .= "$id".","
+   }
+   my $url = $base_url.$id_url;
+
+   warn "$url\n";
+
+   # here is actual interweb transaction
+   my $efetch_result = get($url);
+
+   # simply dump the data to stdout
+   print "$efetch_result\n"; 
+
+   # code below loads result into an XML datastructure
+   # my $xs = XML::Simple->new(forcearray=>1);
+   # my $ref = $xs->XMLin($efetch_result);
+
+   # wait a third of a sec to avoid overloading NCBI servers (per their request)
+   Time::HiRes::usleep(333333);
+}

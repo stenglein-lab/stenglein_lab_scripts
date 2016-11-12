@@ -33,6 +33,18 @@ cat << EOF
 
   SRR_acc_N    SRA run accessions of dataset to download, of form SRRXXXXXXX
 
+
+
+ Usage examples:
+
+  download_sra_data SRR1539827 SRR1539826 SRR1539825
+
+  download_sra_data -f file_with_list_of_SRR_accessions.txt
+
+
+ See also: script sra_to_fastq
+
+
 EOF
 }
 

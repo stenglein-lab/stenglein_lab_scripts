@@ -1,0 +1,89 @@
+#!/usr/bin/perl
+
+# this script reads and outputs flags set in the FLAG field
+# in a SAM format file 
+#
+# Mark Stenglein Feb 21, 2013 
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+This script outputs information about the FLAG fields in a SAM file
+
+Outputs to stdout
+
+Mark Stenglein Feb 20, 2013  
+
+ usage: $0  [h] <sam_file>
+
+   -h                print this message
+   -u                output info for  unmapped records [default = don't, ignore them]
+
+USAGE
+
+my $print_usage = 0;
+my $output_unmapped = 0;
+
+if (scalar @ARGV == 0) { print $usage; exit; }
+
+GetOptions ("h" => \$print_usage, "u" => \$output_unmapped); 
+
+if ($print_usage) { print $usage; exit; }
+
+my $sam_file = shift or print $usage and die($!);
+open (my $sam_fh, "<", $sam_file) or print $usage and die("error: couldn't open sam file $sam_file\n$!\n");
+
+my @defined_flags= qw(0x1 0x2 0x4 0x8 0x10 0x20 0x40 0x80 0x100 0x200 0x400);
+
+my %defined_flags_map = (
+0x1 => 'template having multiple segments in sequencing',
+0x2 => 'each segment properly aligned according to the aligner',
+0x4 => 'segment unmapped',
+0x8 => 'next segment in the template unmapped',
+0x10 => 'SEQ being reverse complemented',
+0x20 => 'SEQ of the next segment in the template being reversed',
+0x40 => 'the first segment in the template',
+0x80 => 'the last segment in the template',
+0x100 => 'secondary alignment',
+0x200 => 'not passing quality controls',
+0x400 => 'PCR or optical duplicate'
+);
+
+my $flag = 0;
+my @fields = ();
+
+LINE: while (<$sam_fh>)
+{
+   chomp;
+   warn "$_\n";
+
+   if (/^@/)
+   {
+      # header lines - just output them
+      # print "$_\n";
+      next;
+   }
+   
+   # split line into tab-delimited components
+   @fields = split "\t";
+
+   # is this an unmapped query?
+   my $query = $fields[0];
+   my $flag = $fields[1];
+
+   # print "$query\n";
+   FLAG: foreach my $defined_flag (@defined_flags)
+   {
+      my $hex_flag = hex ($defined_flag);
+      # if ($hex_flag & 0x4) { next FLAG; }
+      if ($flag & $hex_flag)
+      {
+         print "\t$defined_flag\t$defined_flags_map{$hex_flag}\n";
+      }
+   }
+   # print "\n";
+
+}

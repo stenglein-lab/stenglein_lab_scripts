@@ -1,0 +1,159 @@
+#!/usr/bin/perl
+
+# this script filters sam alignment records based
+# on %identity of aligned bases
+#
+# Mark Stenglein Aug 2, 2016  
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+This script filters sam alignment records based on score cutoffs
+(This is analogous to filtering a blast results file by e-value)
+
+Mark Stenglein July 27, 2012
+
+ usage: $0  [h] [-min min_pct_id] [-max max_pct_id] <sam_file>
+
+   -h                print this message
+
+   -min min_pct_id   only output SAM records whose alignment has >= this % identity
+	                  as calcualted from the MD field.  Range: 0-100
+
+   -max max_pct_id   only output SAM records whose alignment has < this % identity
+	                  as calcualted from the MD field.  Range: 0-100
+
+   -u                output unmapped queries (that have no alignment).
+                     default is to supress them
+
+USAGE
+
+my $lower_cutoff = undef;
+my $upper_cutoff = undef;
+my $print_usage = 0;
+my $output_unmapped = 0;
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+GetOptions ("h" => \$print_usage, 
+            "min=s" => \$lower_cutoff, 
+            "max=s" => \$upper_cutoff,
+            "u" => \$output_unmapped);
+
+if ($print_usage) { print $usage; exit; }
+
+my $flag = 0;
+my @fields = ();
+my @tags = ();
+my $print_this_line = 0;
+my $line = undef;
+
+while (<>)
+{
+   chomp;
+	$line = $_;
+
+   if (/^@/)
+   {
+      # header lines - just output them
+      print "$line\n";
+      next;
+   }
+
+	# keep track of whether we will print this line
+	$print_this_line = 0;
+   
+   # split line into tab-delimited components
+   @fields = split "\t";
+
+   # is this an unmapped query?
+   if (!$output_unmapped)
+   {
+      my $flag = $fields[1];
+      # don't output unmapped queries
+      # see SAM format spec.
+      if ($flag & 4) { next; }
+   }
+
+   my $num_matches = 0;
+   my $num_mismatches = 0;
+
+   my $num_fields = scalar (@fields);
+   @tags = @fields[11 .. ($num_fields-1)];
+   foreach (@tags)
+   {
+      if (/MD:Z:([0-9]+(([A-Z]|\^[A-Z]+)[0-9]+))/)
+		{
+		   my $md_string = $1;
+			my $md_string_last = undef;
+			# warn "MD: $md_string\n";
+
+         # iteratively parse the MD string 
+         while ($md_string !~ /^$/)
+         {
+			   # warn "MD: $md_string\n";
+				if ($md_string eq $md_string_last)
+				{
+				   die "error parsing MD string: apparently in an infinite loop: \nLINE: $_\nmd_string: $md_string  md_string_last: $md_string_last\n";
+				}
+            if ($md_string =~ /^([0-9]+)/)
+            {
+					# the number here is simply the length of a stretch of aligned bases
+               my $md_part = $1;
+					$num_matches += $md_part;
+			      $md_string_last = $md_string;
+					my $length_to_clip = length ($md_part);
+               $md_string = substr($md_string, $length_to_clip);
+            } 
+				elsif ($md_string =~ /^(\^[A-Z]+)/)
+            { 
+					# this is an indel - see SAM spec. for explanation
+               my $md_part = $1;
+					my $indel_length = length($md_part) - 1;   # don't count the ^ character in the indel length 
+					$num_mismatches += $indel_length;
+			      $md_string_last = $md_string;
+					my $length_to_clip = length ($md_part);
+               $md_string = substr($md_string, $length_to_clip);
+            } 
+				elsif ($md_string =~ /^([A-Z]+)/)
+            { 
+					# mismatched bases in alignment
+               my $md_part = $1;
+					$num_mismatches += length($md_part);
+			      $md_string_last = $md_string;
+					my $length_to_clip = length ($md_part);
+               $md_string = substr($md_string, $length_to_clip);
+            } 
+            else 
+            {
+               die "Unexpected MD string part: $md_string\n";
+            }
+         }
+
+			# TODO: confirm this handle indels correctly?
+			my $pct_id = sprintf ("%0.2f", 100 * ($num_matches / ($num_matches + $num_mismatches)));
+
+			# is in pct id range?
+         if (($lower_cutoff && ($pct_id < $lower_cutoff)) || ($upper_cutoff && ($pct_id >= $upper_cutoff)))
+         {
+            # this one outside of range - won't print it
+				$print_this_line = 0;
+         }
+			else
+			{
+				# made it past filters
+				$print_this_line = 1;
+			}
+      }
+   }
+
+	# should we print this line?
+	if ($print_this_line)
+	{
+      print "$line\n";
+	}
+}
+
+   

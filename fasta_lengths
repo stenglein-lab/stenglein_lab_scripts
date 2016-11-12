@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+
+# calculate mean, median, and stdev of 
+# sequence lengths in a fasta file
+#
+# Mark Stenglein, June 23, 2011
+
+use strict;
+
+# read fasta file from stdin
+my $seq_length = undef;
+my $header = undef;
+while (<>)
+{
+   chomp;
+   if (/>/)
+   {
+      if (defined $seq_length)
+      {
+         print "$header\t$seq_length\n";
+         # print "$seq_length\n";
+      }
+      $seq_length = 0;
+      $header = $_;
+   }
+   else
+   {
+      $seq_length += length ($_);
+   }
+}
+# don't forget last sequence
+if (defined $seq_length)
+{
+   print "$header\t$seq_length\n";
+   # print "$seq_length\n";
+}
+

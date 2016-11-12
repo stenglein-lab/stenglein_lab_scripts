@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+my $prepend_text = undef;
+my $append_text = undef;
+
+my $usage = <<USAGE;
+
+  Modify the headers of all records in a fasta file.
+
+  Can prepend or append text to existing header text.  
+  
+  Reads stdin writes to stdout.
+
+  Mark Stenglein, March 23, 2013
+
+  usage: modify_fasta_name [-h] <-p text_to_prepend> <-a text_to_append> <fasta_file>
+
+  -h         print this message
+
+  -p text    prepend text before the existing text of each record's header
+
+  -a text    append text after the existing text of each record's header
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit;}
+
+GetOptions("h" => \$print_usage,
+           "p=s" => \$prepend_text,
+           "a=s" => \$append_text);
+
+if ($print_usage) {print $usage and exit;}
+
+while (<>)
+{
+   chomp;
+   # header line
+   if (/^>(.*)/)
+   {
+      my $header = $1;
+      if ($prepend_text)
+      {
+         $header = $prepend_text . $header;
+      }
+      if ($append_text)
+      {
+         $header = $header . $append_text;
+      }
+      print ">$header\n";
+   }
+   else
+   {
+      print "$_\n";
+   }
+}
+

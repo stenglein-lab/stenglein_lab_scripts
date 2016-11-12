@@ -1,0 +1,105 @@
+#!/usr/bin/perl
+
+
+use strict;
+use Getopt::Long;
+
+# TODO: make this setable by environmental variable or command line option
+my $tax_dir = "/home/mdstengl/NCBI_Taxonomy";
+
+my $print_usage = 0;
+my %node_rank = ();
+my %node_parent = ();
+my %node_descendents = ();
+
+my $usage = <<USAGE;
+
+   Given a taxid, output all descendent taxids
+
+   usage: $0 taxid
+
+USAGE
+
+if (scalar @ARGV == 0) { print $usage and exit; }
+
+GetOptions("h" => \$print_usage); 
+
+if ($print_usage) { print $usage and exit; }
+
+my $taxid = shift or die;
+
+# parse nodes.dmp
+parse_nodes();
+
+output_descendents($taxid);
+
+
+
+sub output_descendents
+{
+   my $taxid = shift @_;
+
+   print "$taxid\n";
+
+   if ($node_descendents{$taxid})
+   {
+      my @children_taxids = @{$node_descendents{$taxid}};
+
+      foreach my $child_taxid ( @children_taxids)
+      {
+         output_descendents($child_taxid);
+      }
+   }
+}
+
+# parse nodes.dmp file and populate a tree structure with info 
+sub parse_nodes
+{
+   # nodes.dmp file consists of taxonomy nodes. The description for each node includes the following
+   # fields:
+   # tax_id               -- node id in GenBank taxonomy database
+   # parent tax_id           -- parent node id in GenBank taxonomy database
+   # rank              -- rank of this node (superkingdom, kingdom, ...)
+   # embl code            -- locus-name prefix; not unique
+   # division id          -- see division.dmp file
+   # inherited div flag  (1 or 0)     -- 1 if node inherits division from parent
+   # genetic code id            -- see gencode.dmp file
+   # inherited GC  flag  (1 or 0)     -- 1 if node inherits genetic code from parent
+   # mitochondrial genetic code id    -- see gencode.dmp file
+   # inherited MGC flag  (1 or 0)     -- 1 if node inherits mitochondrial gencode from parent
+   # GenBank hidden flag (1 or 0)            -- 1 if name is suppressed in GenBank entry lineage
+   # hidden subtree root flag (1 or 0)       -- 1 if this subtree has no sequence data yet
+   # comments          -- free-text comments and citations
+
+   # nodes.dmp has a stupid quasi-tab-deliminted format that isn't amenable to splitting
+   #   1  |  1  |  no rank  |     |  8  |  0  |  1  |  0  |  0  |  0  |  0  |  0  |     |
+   my $nodes_file = $tax_dir."/nodes.dmp";
+   open (my $nodes_fh, "<", $nodes_file) or 
+          die ("error: couldn't open NCBI nodes.dmp file: $nodes_file\n");
+
+   warn "Parsing $nodes_file\n";
+   while (<$nodes_fh>)
+   {
+      chomp;
+      if (/(\d+)\t\|\t(\d+)\t\|\t(\w+)/)
+      {
+         my $taxid = $1;
+         my $parent_taxid = $2;
+         my $rank = $3;
+         # store the tree not really as a tree but as a couple hashes
+         $node_rank{$taxid} = $rank;
+         $node_parent{$taxid} = $parent_taxid;
+         # keep track of the descendents of each node
+         if ($parent_taxid != $taxid)
+         {
+            push @{$node_descendents{$parent_taxid}}, $taxid;
+         }
+         # print "$taxid\t$parent_taxid\t$rank\n";
+      }
+      else
+      {
+         die "error: unexpected format in $nodes_file file: $_\n";
+      }
+   }
+}
+

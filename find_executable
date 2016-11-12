@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# find files executable by owner, group, or everyone
+# find . -perm /111
+# \( ! -name tmp \)
+# find . -perm /111 -not -type d
+# find . -perm /111 -not -type d -exec ls -lrth {} \;
+find . -perm /111 -not -type d | xargs ls -lrth

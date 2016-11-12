@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# convert .sra files to .fastq files
+# Mark Stenglein 6/2016
+
+usage=$(cat <<'END_USAGE'
+ 
+ This script converts .sra to .fastq files using the NCBI fastq-dump utility
+
+ It splits paired-read files into separate read 1 and 2 files if applicable
+
+ It renames files to <SRR#>_R1.fastq and <SRR#>_R2.fastq (if paired reads)
+
+ This script requires that the NCBI fastq-dump utility be installed and in 
+ the user's PATH.  See: http://www.ncbi.nlm.nih.gov/books/NBK158900/
+
+ Mark Stenglein May 10, 2011.  Updated: June 23, 2016
+
+  Usage: 
+ 
+   -h        print this help 
+ 
+
+   Examples:
+
+	  sra_to_fastq SRR1234566.sra
+	  sra_to_fastq *.sra
+
+END_USAGE
+)
+
+
+if [ $# -eq 0 ]
+then
+   echo -e "$usage\n"
+   exit
+fi
+
+while getopts "h" optionName; do
+case "$optionName" in
+
+     h)   echo "$usage\n"; exit;;
+   [?])   echo "error: invalid argument"; echo "$usage\n"; exit;;
+esac
+
+done
+
+shift $((OPTIND-1))
+
+
+
+for sra_file in "$@"
+do
+   # sra_file=$1
+   sra_base=${sra_file/.sra/}
+
+   echo "fastq-dump --split-files $sra_file"
+   fastq-dump --split-files $sra_file
+
+   echo "mv ${sra_base}_1.fastq ${sra_base}_R1.fastq"
+   mv ${sra_base}_1.fastq ${sra_base}_R1.fastq
+   echo "mv ${sra_base}_2.fastq ${sra_base}_R2.fastq"
+   mv ${sra_base}_2.fastq ${sra_base}_R2.fastq
+done

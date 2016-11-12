@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# run a command once a file exists
+# 
+# Mark Stenglein, Oct 16, 2011
+#
+usage="$0 [-t minutes_to_wait_before_giving_up] <file_that_must_exist> <command_that_will_be_run_once_file_exists>"
+attempts_limit=0
+
+if [ $# -eq 0 ]
+then
+   echo $usage
+   exit
+fi
+
+while getopts "ht:" optionName; do
+case "$optionName" in
+h) echo "$usage"; exit;;
+t) attempts_limit="$OPTARG";
+   if [[ ! $attempts_limit =~ ^[0-9]+$ ]]
+   then
+      echo "error: invalid number of attempts [-t]: $attempts_limit - expected argument"; echo "$usage"; exit;
+   fi
+   ;;
+   [?]) echo "error: invalid argument"; echo "$usage"; exit;;
+   esac
+done
+
+shift $((OPTIND-1))
+
+filename=$1
+shift
+
+command=$*
+
+while [ ! -e $filename ]
+do
+   sleep 60 
+
+   if [ "$attempts_limit" -gt "0" ]
+   then
+      number_attempts=`expr $number_attempts + 1`
+      if [ "$number_attempts" -gt "$attempts_limit" ] 
+      then 
+         echo "max number attempts ($attempts_limit) exceeded to run command: $command"
+         exit
+      fi
+   fi
+done
+
+$command 
+
+
+

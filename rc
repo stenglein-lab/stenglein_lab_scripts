@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $usage =<<USAGE;
+
+ reverse complements a DNA sequence
+
+ usage: $0 sequence or file containing sequences
+
+ reads from stdin writes to stdout
+
+USAGE
+
+if ( -t STDIN and not @ARGV ) 
+{
+   # We're talking to a terminal, but have no command line arguments.
+   # Complain loudly.
+   
+   print $usage and exit;
+}
+
+if ( -e $ARGV[0] or ! -t STDIN )
+{
+   # first command line arg is a file - assume it contains seqs
+   # or getting input from stdin 
+   while (<>)
+   {
+      chomp;
+      # if the line doesn't look like it contains a sequence
+      # then don't know what this line is, maybe a fasta header
+      # anyway, just print it out
+      if (!/^[ACGTN]/)
+      {
+         print "$_\n";
+      }
+      my $rc = reverse_complement_dna ($_);
+      print "$rc\n";
+   }
+}
+else
+{
+   # assume command line args are sequences themselves
+   while (my $seq = shift)
+   {
+      my $rc = reverse_complement_dna ($seq);
+      print "$rc\n";
+   }
+}
+
+
+sub reverse_complement_dna 
+{ 
+   my $segment = @_[0];
+   my $revcomp = reverse($segment);
+   $revcomp =~ tr/ACGTacgt/TGCAtgca/;
+   return $revcomp; 
+}

@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $sort_column = 1;
+my $print_usage = 0;
+my $alphabetical_sort = 0;
+my $reverse = 0;
+
+my $usage = <<USAGE;
+
+ This script takes as input (in stdin) a file of tab-separated lines
+ and outputs the file sorted by the specified column (default = 1st column, 1)
+
+ Mark Stenglein, Oct 14, 2011
+
+ usage $0 [-h] 
+          [-r reverse sort order]
+          [-a alphabetical sort, default = numeric]
+          [-s sort_column default = first column (1)] 
+          <tab_delimited_file>
+
+USAGE
+
+if (scalar @ARGV == 0) { print $usage and exit;}
+
+GetOptions("r" => \$reverse, "s=i" => \$sort_column, "a" => \$alphabetical_sort, "h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit;}
+
+my @fields = ();
+my %table = ();
+$sort_column -= 1;
+
+while (<>)
+{
+   chomp;
+   @fields = split "\t";
+   my $sort_key = $fields[$sort_column];
+   push @{$table{$sort_key}}, $_;  
+}
+
+my @sorted_keys = ();
+if (!$alphabetical_sort)
+{
+   # numeric
+   if ($reverse)
+   {
+      @sorted_keys = sort {$a <=> $b} keys %table;
+   }
+   else
+   {
+      @sorted_keys = sort {$b <=> $a} keys %table;
+   }
+}
+else
+{
+   # alphabetic
+   if ($reverse)
+   {
+      @sorted_keys = reverse sort keys %table;
+   }
+   else
+   {
+      @sorted_keys = sort keys %table;
+   }
+}
+
+foreach my $k (@sorted_keys)
+{
+   foreach my $l (@{$table{$k}})
+   {
+      print "$l\n";
+   }
+}
+

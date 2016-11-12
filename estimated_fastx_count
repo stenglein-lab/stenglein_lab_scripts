@@ -1,0 +1,124 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $usage = <<USAGE;
+
+   estimates the number of records in a fasta or fastq file
+   by the size of the file and the average size of the first 
+   20000 records
+
+   for fastq input, expects 4-line format
+
+   usage: $0 <fasta/q_file>
+
+USAGE
+
+my $filename = shift or print $usage and exit;
+
+open (my $fh, "<", $filename) or print $usage and die "error, couldn't open file $filename\n";
+
+# go to beginning of file
+my $rc = seek ($fh, 0, 0);
+if ($rc != 1) { die "error - couldn't seek to beginning of file $filename\n"; }
+
+# go to end of file
+$rc = seek ($fh, 0, 2);
+if ($rc != 1) { die "error - couldn't seek to end of file $filename\n"; }
+
+# determine file size
+my $file_size = tell ($fh);
+if ($file_size == -1) { die "error - couldn't determine size of file $filename\n"; }
+
+# empty file, 0 records
+if ($file_size == 0) { print "0\n"; exit; }
+
+# go to beginning of file
+$rc = seek ($fh, 0, 0);
+if ($rc != 1) { die "error - couldn't seek to beginning of file $filename\n"; }
+
+# is fasta or fastq?
+my $first_char = undef;
+$rc = read($fh, $first_char, 1);
+if ($rc != 1) { die "error - couldn't read first character of file $filename\n"; } 
+
+my $fastq_file = 0;
+my $fasta_file = 0;
+
+if ($first_char eq "@") { $fastq_file = 1; }
+elsif ($first_char eq ">") { $fasta_file = 1; }
+else { die "error was expecting fasta or fastq file but file $filename appears to be neither\n"; }
+
+
+# fetch the first N records and determine their average size
+
+# go to beginning of file
+$rc = seek ($fh, 0, 0);
+if ($rc != 1) { die "error - couldn't seek to beginning of file $filename\n"; }
+
+my $line_counter = 0;
+my $record_size = 0;
+my $record_size_sum = 0;
+my $record_count = 0;
+my $records_to_avg = 20000;
+
+# count the first N records
+while (<$fh>)
+{
+   $line_counter += 1;
+   my $line_size = length ($_);
+
+   # fasta files 
+   if ($fasta_file && /^>/)
+   {
+      $record_count += 1;
+      $record_size_sum += $record_size;
+      if ($record_count > $records_to_avg) { last; }
+      $record_size = $line_size;
+   }
+   elsif ($fasta_file)
+   {
+      # fasta non header
+      $record_size += $line_size;
+   }
+
+   # fastq files 
+   if ($fastq_file)
+   {
+      $record_size += $line_size;
+   }
+
+   if ($fastq_file && ($line_counter == 1))
+   {
+      $record_count += 1;
+      if (!/^@/)
+      {
+         die "error - was expecting 4-line fastq format.\nfile $filename doesn't appear to be in this format\n";
+      }
+   }
+   elsif ($fastq_file && ($line_counter == 4))
+   {
+      $record_size_sum += $record_size;
+      $record_size = 0;
+      $line_counter = 0;
+      if ($record_count >= $records_to_avg) { last; }
+   }
+}
+
+
+if ($record_count == 0) { print "0\n"; exit; }
+if ($record_count < $records_to_avg) { print "$record_count\n"; exit; }
+
+# if this is a fasta file, then we counted one extra record
+if ($fasta_file) { $record_count -= 1; }
+
+my $average_record_size = $record_size_sum / $record_count;
+# print "record count: $record_count\n";
+# print "record size sum: $record_size_sum\n";
+# print "average record size: $average_record_size\n";
+
+my $estimated_record_count = int ($file_size / $average_record_size);
+print "$estimated_record_count\n"; 
+
+exit;
+

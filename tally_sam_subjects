@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# this script counts the aligned-to subject IDs in a SAM file and outputs a sorted tally
+# 
+# Mark Stenglein Dec 3, 2015
+
+samfile=$1
+
+awk '( $0 !~ /^@/ ) && ( $3 != "*" ) { print }' $samfile |   # ignore header lines (starting w/ @) and unmapped reads (field 3 == *)
+cut -f 3 |                 # cut out 3rd field (subject ID)
+sort |                     # sort subject IDs
+uniq -c |                  # collapse to unique list of subject IDs and tally counts
+sort -nr |                 # sort numerically by tally, largest first
+awk '{print $2 "\t" $1}'   # reverse column order

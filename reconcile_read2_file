@@ -1,0 +1,219 @@
+#!/usr/bin/perl
+
+# This script takes two fastx files as an argument
+# and outputs all those records in the 2nd file
+# whose paired-end sibling read is present in the
+# first file
+#
+# It assumes that the files correspond to matched
+# paired-end reads, with headers in standard
+# Illumina format
+#
+# Mark Stenglein Oct 17, 2011
+
+use strict;
+
+my $usage=<<USAGE; 
+
+ This script takes two fastx files as an argument
+ and outputs all those records in the 2nd file
+ whose paired-end sibling read is present in the
+ first file
+
+ It assumes that the files correspond to matched
+ paired-end reads, with headers in standard
+ Illumina format
+
+ usage: reconcile_read2_file <read1_filtered_fastx_file> <read2_fastx_file>
+
+USAGE
+
+if (scalar @ARGV == 0) { print $usage and exit; }
+
+#TODO - make this configurable
+my $split_ids = 1;
+
+my $r1_filename = shift or print ($usage) and die ($!);
+my $r2_filename = shift or print ($usage) and die ($!);
+
+open (my $r1_fh, "<", $r1_filename) or print ($usage) and die ("Error: couldn't open read1 file: $r1_filename\n");
+open (my $r2_fh, "<", $r2_filename) or print ($usage) and die ("Error: couldn't open read2 file: $r2_filename\n");
+
+my $header = undef;
+my %r1_headers = ();
+
+my $first_line = 1;
+my $line_count = 1;
+my $fasta_format = 0;
+my $fastq_format = 0;
+
+warn "parsing first file: $r1_filename\n";
+# first, store all the r1 headers
+while (<$r1_fh>)
+{
+   if ($first_line)
+   {
+      if (/^>/)
+      {
+         $fasta_format = 1;
+         $fastq_format = 0;
+      }
+      elsif  (/^@/)
+      {
+         $fasta_format = 0;
+         $fastq_format = 1;
+      }
+      else
+      {
+         die "error: was expecting fasta or fastq format for file $r1_filename\nline = $_\n";
+      }
+      $first_line = 0;
+   }
+
+   if ($fasta_format  && /^>/)
+   {
+      chomp;
+      $header = $_;
+      $header =~ s/[>]//;
+      # strip -1 or -2 paired-end suffix
+      # or 
+      #       /1 or /2 paired-end suffix
+      # for older Illumina formats
+      $header =~ s/\-[12]$//;
+      $header =~ s/\/[12]$//;
+      if ($split_ids)
+      {
+         if ($header =~ /(\S+)\s/)
+         {
+            $header = $1;
+         }
+      }
+   
+      $r1_headers{$header} = 1;
+   }
+   elsif ($fastq_format)
+   {
+      if ($line_count == 1)
+      {
+         if (/^@/)
+         {
+            chomp;
+            $header = $_;
+            $header =~ s/[@]//;
+            # strip /1 or /2 paired-end suffix
+            # for older Illumina format
+            $header =~ s/\-[12]$//;
+            $header =~ s/\/[12]$//;
+            if ($split_ids)
+            {
+               if ($header =~ /(\S+)\s/)
+               {
+                  $header = $1;
+               }
+            }
+            $r1_headers{$header} = 1;
+         }
+         else
+         {
+            die "error: was expecting 4-line fastq format for file: $r1_filename\nline = $_\n";
+         }
+      }
+      $line_count++;
+      if ($line_count == 5)
+      {
+         $line_count = 1;
+      }
+   }
+}
+
+warn "processing second file: $r2_filename\n";
+$first_line = 1;
+$line_count = 1;
+my $printing_lines = 0;
+while (<$r2_fh>)
+{
+   chomp;
+   if ($first_line)
+   {
+      if (/^>/)
+      {
+         $fasta_format = 1;
+         $fastq_format = 0;
+      }
+      elsif  (/^@/)
+      {
+         $fasta_format = 0;
+         $fastq_format = 1;
+      }
+      else
+      {
+         die "error: was expecting fasta or fastq format for file $r2_filename\nline = $_\n";
+      }
+      $first_line = 0;
+   }
+   if ($fasta_format && /^>/)
+   {
+      $printing_lines = 0;
+      $header = $_;
+      $header =~ s/[>]//;
+      # strip /1 or /2 paired-end suffix
+      # for older Illumina format
+      $header =~ s/\-[12]$//;
+      $header =~ s/\/[12]$//;
+      # for newer Illumina fastq format
+      if ($split_ids)
+      {
+         if ($header =~ /(\S+)\s/)
+         {
+            $header = $1;
+         }
+      }
+      if ($r1_headers{$header})
+      {
+         $printing_lines = 1;
+      }
+   }
+   elsif ($fastq_format)
+   {
+      if ($line_count == 1)
+      {
+         if (/^@/)
+         {
+            $printing_lines = 0;
+            $header = $_;
+            $header =~ s/[@]//;
+            # strip /1 or /2 paired-end suffix
+            # for older Illumina format
+            $header =~ s/\-[12]$//;
+            $header =~ s/\/[12]$//;
+            if ($split_ids)
+            {
+               if ($header =~ /(\S+)\s/)
+               {
+                  $header = $1;
+               }
+            }
+         }
+         else
+         {
+            die "error: was expecting 4-line fastq format for file: $r2_filename\nline = $_\n";
+         }
+
+         if ($r1_headers{$header})
+         {
+            $printing_lines = 1;
+         }
+      }
+
+      $line_count++;
+      if ($line_count == 5)
+      {
+         $line_count = 1;
+      }
+   }
+
+   if ($printing_lines)
+   {
+      print "$_\n";
+   }
+}

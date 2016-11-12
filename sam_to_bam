@@ -1,0 +1,9 @@
+#!/bin/bash
+
+sam=$1
+sam_prefix=${sam/.sam/}
+
+# process output
+samtools view -S -b ${sam_prefix}.sam > ${sam_prefix}.bam
+samtools sort ${sam_prefix}.bam ${sam_prefix}_sorted
+samtools index ${sam_prefix}_sorted.bam

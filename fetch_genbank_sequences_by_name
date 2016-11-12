@@ -1,0 +1,190 @@
+#!/usr/bin/perl
+
+use strict;
+use Time::HiRes;
+use XML::Simple;
+use Data::Dumper;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  This script takes as input a file containing a series of search strings (e.g. virus names), one per line.
+  
+  It then uses the NCBI E-Utils system to query the nucleotide database with those search strings and 
+  download any corresponding records in genbank format and writes those records to a new file
+  named for the search string.  
+
+  It also outputs a summary of the # records identified, their length and accession numbers.
+
+  Mark Stenglein,  10/18/2016
+
+  Usage: $0 [-h] file_with_search_strings (e.g. file_with_virus_names.txt)
+
+   [-h]          print this message
+
+USAGE
+
+my $print_usage = 0;
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+GetOptions ("h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit; }
+
+ 
+# first, read the names from a file
+# assume they are listed one per line in stdin
+
+while (<>)
+{
+   chomp;
+   my $name = $_;
+	warn "fetching Genbank records for: $name\n";
+
+   fetch_one_name($name);
+	
+	# do <3 queries per second per Genbank's request
+   Time::HiRes::usleep(333333);  # sleep for 1/3 a second
+}
+
+
+# here, actually fetch data from NCBI
+sub fetch_one_name()
+{
+	my $name = shift @_;
+   my $db = 'nuccore';
+
+	# first, do an E-search to get info about records...
+
+   # construct url
+   # TODO: make this work for any NCBI db
+   my $base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nuccore&tool=fetch_genbank_sequences_by_name&email=markstenglein_at_yahoo.com&usehistory=y";
+	# replace space characters with + for URL
+	my $url_name = $name;
+	$url_name =~ tr/ /\+/;
+	$url_name =~ tr/\'/\\\'/;
+	$base_url .= "&term=\"$url_name\"&field=\"All Fields\"";
+	my $url = $base_url;
+
+	warn "URL: $url\n";
+  
+	# sleep a little more for Genbank
+   Time::HiRes::usleep(100000);  # sleep for 1/2 a second
+
+   # here is actual interweb transaction
+   my $efetch_result = `curl -s '$url'`;
+
+   # code below loads result into an XML datastructure
+   my $xs = XML::Simple->new(forcearray=>1);
+   my $ref = $xs->XMLin($efetch_result);
+   # print Dumper $ref;
+
+	my $count = $ref->{Count}[0];
+   print "$name\t$count records in Genbank nucleotide database\n";
+
+	if ($count == 0)
+	{
+		# no records, go to next
+	   next;
+	}
+
+	# web env and query_key take advantage of the "history" function of the NCBI E-Utils
+   my $web_env = undef;
+	my $query_key = undef;
+
+
+	if (defined $ref->{WebEnv}[0])
+	{
+		$web_env = $ref->{WebEnv}[0];
+	}
+	else
+	{
+	   die "error: couldn't find WebEnv for results for name: $name\n";
+	}
+
+	if (defined $ref->{QueryKey}[0])
+	{
+		$query_key = $ref->{QueryKey}[0];
+	}
+	else
+	{
+	   die "error: couldn't find QueryKey for results for name: $name\n";
+	}
+
+	my @genbank_ids = ();
+	if (defined $ref->{IdList}[0]{Id})
+	{
+		@genbank_ids = @{$ref->{IdList}[0]{Id}};
+	}
+	else
+	{
+	   die "error: couldn't find Ids for results for name: $name\n";
+	}
+
+	my $ids_string = join "\t", @genbank_ids;
+	## warn "Ids: $ids_string\n";
+
+   my $number_genbank_ids = scalar @genbank_ids;
+
+	# now fetch genbank sequences for these sequences
+   $base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=nuccore&tool=fetch_genbank_sequences_by_name&email=markstenglein_at_yahoo.com";
+	$url = $base_url . "&query_key=" . $query_key . "&WebEnv=" . $web_env ;
+
+	my $esummary_results = `curl -s "$url"`;
+
+   # code below loads result into an XML datastructure
+   my $xs = XML::Simple->new(forcearray=>1);
+   my $ref = $xs->XMLin($esummary_results);
+
+	my @docsums = @{$ref->{DocSum}};
+	foreach my $docsum (@docsums)
+	{
+		my @items = @{$docsum->{Item}};
+		my $accession = undef;
+		my $title = undef;
+		my $length = undef;
+		foreach my $item (@items)
+		{
+	      my $name = $$item{Name};
+	      my $content = $$item{content};
+			if ($name eq 'Caption')
+			{
+			  $accession = $content;
+			}
+			elsif ($name eq 'Length')
+			{
+			  $length = $content;
+			}
+			elsif ($name eq 'Title')
+			{
+			  $title = $content;
+			}
+		}
+		print "\t$accession\t$length nt\t$title\n";
+	}
+
+	# now fetch genbank sequences for these sequences and dump them in a file
+   $base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&tool=fetch_genbank_sequences_by_name&email=markstenglein_at_yahoo.com";
+	$url = $base_url . "&query_key=" . $query_key . "&WebEnv=" . $web_env . "&rettype=gb&retmode=text";
+
+   # warn "URL: $url\n";
+
+	# sleep a little more for Genbank
+   Time::HiRes::usleep(100000);  # sleep for 1/2 a second
+
+	my $genbank_seqs = `curl -s "$url"`;
+
+	# warn "$genbank_seqs\n";
+
+	my $no_space_name = $name;
+	$no_space_name =~ tr/ /_/;
+	my $genbank_filename = $no_space_name . "genbank_nt_sequences.gb";
+
+	open (my $gb_fh, ">", $genbank_filename) or die "error: couldn't open file for writing: $genbank_filename\n";
+
+	print $gb_fh "$genbank_seqs"; 
+
+	close($gb_fh);
+
+}

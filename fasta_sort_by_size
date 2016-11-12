@@ -1,0 +1,87 @@
+#!/usr/bin/perl
+
+# this script sorts fasta sequences based
+# on their size
+#
+# Mark Stenglein April 10, 2013 
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+ this script sorts fasta sequences based
+ on their size
+
+ reads from stdin and writes to stdout
+
+ Mark Stenglein April 10, 2013 
+
+ usage: fasta_sort_by_size [h] [-a] <fasta_file>
+
+   -h   print this message
+
+   -a   sort by ascending size (default = sort by descending size)
+
+USAGE
+
+my $print_usage = 0;
+my $ascending_sort = 0;
+
+GetOptions ("h" => \$print_usage, "a" => \$ascending_sort);
+
+if ($print_usage) { print $usage; exit; }
+
+# my $fasta_file = shift or print $usage and die($!);
+# open (my $fasta_fh, "<", $fasta_file) or print $usage and die("error: couldn't open FASTA file $fasta_file\n$!\n");
+
+my $seq = undef;
+my $header = undef;
+
+my %seqs = ();
+
+# while (<$fasta_fh>)
+while (<>)
+{
+   chomp;
+   if (/^>/)
+   {
+      if ($header) 
+      {
+         # warn "$header\n$seq\n";
+         $seqs{$header} = $seq;
+      }
+      $header = $_;
+      $seq = "";
+   }
+   else
+   {
+      $seq .= $_;
+   }
+}
+# last record
+if ($header) 
+{
+   $seqs{$header} = $seq;
+}
+
+# sort and output
+if ($ascending_sort)
+{
+   foreach my $header ( sort { length($seqs{$a}) <=> length($seqs{$b})} keys %seqs)
+   {
+      my $seq = $seqs{$header};
+      print "$header\n$seq\n";
+   }
+}
+else
+{
+   foreach my $header ( sort { length($seqs{$b}) <=> length($seqs{$a})} keys %seqs)
+   {
+      my $seq = $seqs{$header};
+      print "$header\n$seq\n";
+   }
+}
+
+

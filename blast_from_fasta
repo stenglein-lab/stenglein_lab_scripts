@@ -1,0 +1,115 @@
+#!/usr/bin/perl
+
+# given a fasta file and a blast output file, output the records in the
+# blast file that have a corresponding entry in the fasta file
+#
+# Mark Stenglein June 4, 2014
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  Given a fasta file and a blast output file, output the records in the
+  blast file that have a corresponding entry in the fasta file
+
+  If -f not specified then try to guess the fasta filename 
+  based on the blast results filename.
+
+usage: $0 [-h] [-e max_evalue] [-r] [-f fasta_file] <blast_m8_file>";
+
+   -h                 print this message. 
+
+   -r                 reverse of normal behavior - output all those blast records
+                      without a fasta counterpart
+
+   -f fasta_file      the fasta file that was used as blast query
+                      if not specified, the name will be inferred from 
+                      the name of the blast results file
+USAGE
+
+#TODO - make this configurable
+my $split_ids = 1;
+
+my $print_usage = 0;
+my $max_evalue = undef;
+my $fasta_file = undef;
+my $output_misses = 0;
+my $min_aln_length = undef;
+my $max_mismatches = undef;
+
+if (scalar @ARGV == 0) { warn $usage and die; }
+
+GetOptions ( "h" => \$print_usage,
+             "r" => \$output_misses, 
+             "f=s" => \$fasta_file);
+
+if ($print_usage) { print $usage and exit;}
+
+while (my $blast_file = shift)
+{
+   open (my $blast_fh, "<", $blast_file) or print "error: couldn't open blast results file: $blast_file\n$usage" and exit;
+
+   if (!$fasta_file)
+   {
+      # try to figure out fasta filename
+      $blast_file =~ /(.*\.(fasta|fa))(?!.*\.(fasta|fa))/;
+      $fasta_file = $1;
+   }
+   open (my $fasta_fh, "<", $fasta_file) or print "error: couldn't open fasta file: $fasta_file\n$usage" and exit;
+
+   my %ids = ();
+
+   # parse fasta file and keep track of IDs
+   warn "parsing fasta file: $fasta_file\n";
+   while (<$fasta_fh>)
+   {
+      chomp;
+      if (/^>(.*)$/)
+      {
+         my $id = $1;
+	      if ($split_ids)
+	      {
+	         $id =~ /(\S+)\s/;
+	         $id = $1;
+            $ids{$id} = 1;
+	      }
+      }
+   }
+
+   # parse blast file, only output records w/ a corresponding fasta record
+   my @fields = ();
+   warn "parsing blast file: $blast_file\n";
+   while (<$blast_fh>)
+   {
+      chomp;
+      @fields = split "\t";
+      if (scalar @fields != 12) { warn "error: unexpected format for blast file.  Line: $_\n"; }
+      my $id = $fields[0];
+
+      # if ($max_evalue and ($fields[10] > $max_evalue))
+      # {
+       #   next;
+      # }
+      # if (defined $max_mismatches and ($fields[4] > $max_mismatches))
+      # {
+       #   next;
+      # }
+      # if (defined $min_aln_length and ($fields[3] < $min_aln_length))
+      # {
+       #   next;
+      # }
+
+      if ($ids{$id}) 
+      {
+         if (!$output_misses)
+         {
+            print "$_\n";
+         }
+      }
+      elsif ($output_misses)
+      {
+         print "$_\n";
+      }
+   }
+}

@@ -1,0 +1,69 @@
+#!/bin/bash
+
+
+usage() 
+{
+cat << EOU
+
+ 
+ this script will download multiple FASTQ files from Illumina's basespace website
+ 
+ for more info, see this page : https://gist.github.com/lh3/54f535b11a9ee5d3be8e
+
+ this script requires 3 values: 
+   (*) 2 file IDs - a lower and upper bound.  Files w/ IDS between these will be downloaded
+   (*) an access token (see github page above)
+ 
+ you can either pass them as arguments or the script will prompt for these values if no 
+ arguments passed. 
+
+   usage: download_basespace_data [lower_id upper_id access_token]
+
+
+   Mark Stenglein 7/25/2016
+
+
+EOU
+}
+
+if [ $# -eq 0 ] 
+   then
+
+   usage
+
+   echo " "
+   echo "No arguments supplied - will prompt for values..."
+   echo " "
+
+   echo "enter lower bound ID (e.g., from basespace URL like this: "
+   echo " https://basespace.illumina.com/sample/38247487/files/tree//Generic-sample_S1_L001_R1_001.fastq.gz?id=5504234033"
+   read lower_ID
+   echo " "
+
+   echo "enter upper bound ID (e.g., from basespace URL like this: "
+   echo " https://basespace.illumina.com/sample/38247487/files/tree//Generic-sample_S1_L001_R1_001.fastq.gz?id=5504234040"
+   read upper_ID
+   echo " "
+
+   echo "enter token (see: https://gist.github.com/lh3/54f535b11a9ee5d3be8e)"
+   read token
+   echo " "
+elsif [ $# -ne 3 ]
+	usage
+   echo " "
+   echo " error: invalid # of arguments supplied.  expecting 3"
+   echo " "
+else
+   lower_ID=$1
+   upper_ID=$2
+   token=$3
+fi
+
+
+for id in `seq $lower_ID $upper_ID`
+do
+   echo "fetching file ID: $id"
+   wget "https://api.basespace.illumina.com/v1pre3/files/{$id}/content?access_token={$token}"
+done   
+
+

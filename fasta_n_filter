@@ -1,0 +1,62 @@
+#!/usr/bin/perl
+
+# 
+# Triage sequences in a fasta file based on number of Ns
+# in sequence 
+#
+# Mark Stenglein, August 12, 2011
+#
+
+use strict;
+
+my $usage = "fasta_n_filter cutoff fasta_file \n\tcutoff - sequences with greater than or equal to the indicated number of Ns will be discarded\n\tretained sequences output to stdout\n\tdiscarded sequences output to stderr\n"; 
+
+my $cutoff = shift or die ($usage);
+my $fasta_filename = shift or die ($usage);
+
+my $in = undef;
+open ($in, "<", $fasta_filename) or die ($usage);
+
+my $seq = undef;
+my $header = undef;
+
+while (<$in>)
+{
+   chomp;
+   if (/^>/)
+   {
+      # output previous record
+      if (defined $header)
+      {
+         my $number_ns = ($seq =~ tr/nN//);
+         if ($number_ns < $cutoff)
+         {
+            print "$header\n$seq\n";
+         }
+         else
+         {
+            warn "$header\n$seq\n";
+         }
+      }
+      $header = $_;
+      $seq = "";
+   }
+   else
+   {
+      $seq .= $_;
+   }
+}
+
+# output last record
+if (defined $header)
+{
+   my $number_ns = ($seq =~ tr/nN//);
+   if ($number_ns < $cutoff)
+   {
+      print "$header\n$seq\n";
+   }
+   else
+   {
+      warn "$header\n$seq\n";
+   }
+}

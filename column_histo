@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $sort_column = 1;
+my $print_usage = 0;
+my $alphabetical_sort = 0;
+
+my $usage = <<USAGE;
+
+ This script takes as input (in stdin) a file of tab-separated lines
+ and outputs a histogram of the values in a specified column (default = 1st column, 1)
+
+ Mark Stenglein, August 1, 2012 
+
+ usage $0 [-h] 
+          [-a alphabetical sort, default = numeric]
+          [-s sort_column default = first column (1)] 
+          <tab_delimited_file>
+
+USAGE
+          # [-min specify min bin value]
+          # [-max specify max bin value]  
+          # [-bins specify # bins]
+
+if (scalar @ARGV == 0) { print $usage and exit;}
+
+GetOptions("s=i" => \$sort_column, 
+            "a" => \$alphabetical_sort, 
+            "h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit;}
+
+my @fields = ();
+my %table = ();
+$sort_column -= 1;
+
+while (<>)
+{
+   chomp;
+   @fields = split "\t";
+   my $value = $fields[$sort_column];
+   $table{$value} += 1; 
+}
+
+my @sorted_keys = ();
+if (!$alphabetical_sort)
+{
+   # numeric
+   @sorted_keys = sort {$a <=> $b} keys %table;
+
+   # fill in table with 0 values 
+   my $min_value = $sorted_keys[0];
+   my $max_value = $sorted_keys[scalar(@sorted_keys) - 1];
+   for (my $v = $min_value; $v < $max_value; $v++)
+   {
+      if (!defined $table{$v})
+      {
+         $table{$v} = 0;
+      }
+   }
+
+   # redo sort with filled in table
+   @sorted_keys = sort {$a <=> $b} keys %table;
+}
+else
+{
+   # alphabetic
+   @sorted_keys = sort keys %table;
+}
+
+foreach my $k (@sorted_keys)
+{
+   print "$k\t$table{$k}\n";
+}
+

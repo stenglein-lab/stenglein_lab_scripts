@@ -1,0 +1,137 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+ This script outputs nucleotide and di-nucleotide frequencies
+ of sequences in a fasta file
+
+ reads from stdin and writes to stdout a tab-delimited matrix of frequencies
+
+ unexpected bases in sequences (anything but A,C,G, or T) will be ignored 
+
+ usage: $0 fasta_file
+
+ Mark Stenglein 10.9.2015
+
+USAGE
+
+# if not stdin output usage and exit
+if (-t STDIN && @ARGV == 0) { print ($usage) and exit; }
+
+my $print_usage = 0;
+
+GetOptions ("h" => \$print_usage);
+
+if ($print_usage) { print ($usage) and exit; }
+
+my $header = undef;
+my $seq = undef;
+my @expected_nts = qw (A C G T);
+my %expected_nts_hash = ();
+
+# output header row
+# single nts
+foreach my $nt (@expected_nts)
+{
+   print ("\t$nt");
+	$expected_nts_hash{$nt} = 1;
+}
+# di nts
+foreach my $nt1 (@expected_nts)
+{
+   foreach my $nt2 (@expected_nts)
+	{
+		my $di_nt = $nt1.$nt2;
+      print ("\t$di_nt");
+	}
+}
+print "\n";
+
+
+# read through fasta input
+while (<>)
+{
+	chomp;
+   if (/^>(.+)/)
+	{
+		if ($seq)
+		{
+		   process_seq($header, $seq);
+			$seq = "";
+		}
+	   $header = $1;
+	}
+	else
+	{
+		# in case an RNA seq...
+		$_ =~ tr/Uu/Tt/;
+	   $seq .= $_;
+	}
+}
+if ($seq)
+{
+   process_seq($header, $seq);
+}
+
+# process one sequence
+sub process_seq
+{
+   my ($header, $seq) = @_;
+	my %nts = ();
+	my %di_nts = ();
+
+	# go through seq, count nts
+	# store in a hash
+	for (my $i = 0; $i < length $seq; $i++)
+	{
+	   my $nt = substr($seq, $i, 1);
+		if (!$expected_nts_hash{$nt})
+		{
+		   warn "warning: unexpected nt $nt in sequence $header\n";
+		}
+		$nts{$nt} += 1;
+	}
+	# go through seq, count di nts
+	# store in a hash
+	for (my $i = 0; $i < ((length $seq) - 1); $i++)
+	{
+	   my $di_nt = substr($seq, $i, 2);
+		$di_nts{$di_nt} += 1;
+	}
+
+	my $seq_length = length $seq;
+	if ($seq_length <= 0)
+	{
+	   die ("error: seq length <= 0 for sequence $header\n");
+	}
+
+	# output seq name (fasta header)
+	print "$header";
+
+	# output frequencies
+
+	# single nts
+   foreach my $nt (@expected_nts)
+   {
+		my $nt_count = $nts{$nt};
+		my $nt_freq = $nt_count / $seq_length;
+      printf ("\t%0.3f", $nt_freq);
+   }
+   # di nts
+   foreach my $nt1 (@expected_nts)
+   {
+      foreach my $nt2 (@expected_nts)
+	   {
+			my $di_nt = $nt1.$nt2;
+		   my $nt_count = $di_nts{$di_nt};
+		   my $nt_freq = $nt_count / $seq_length;
+         printf ("\t%0.3f", $nt_freq);
+	   }
+   }
+	print "\n";
+
+}
+

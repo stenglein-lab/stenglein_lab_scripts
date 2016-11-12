@@ -1,0 +1,132 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+# use Histogram;
+
+my $sort_column = 1;
+my $print_usage = 0;
+
+my $usage = <<USAGE;
+
+ This script takes as input (in stdin) a file of tab-separated lines
+ and outputs statistics on the values in a specified column (default = 1st column, 1)
+
+ Mark Stenglein, August 1, 2012 
+
+ usage $0 [-h] 
+          [-s sort_column default = first column (1)] 
+          <tab_delimited_file>
+
+USAGE
+
+if (scalar @ARGV == 0) { print $usage and exit;}
+
+GetOptions("s=i" => \$sort_column, "h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit;}
+
+my @values = ();
+my @fields = ();
+$sort_column -= 1;
+
+while (<>)
+{
+   chomp;
+   @fields = split "\t";
+   my $value = $fields[$sort_column];
+   push (@values, $value);
+}
+
+my $num_seqs = scalar @values;
+my $mean = mean(@values);
+my $median = median(@values);
+my $stdev = standard_deviation(@values);
+my $sum = $mean * $num_seqs;
+
+# print "Count\t$num_seqs\tMean\t$mean\nMedian\t$median\nStdev\t$stdev\n";
+printf "N\t%s\n", $num_seqs;
+printf "Mean\t%0.2e\n", $mean;
+printf "Median\t%0.2e\n", $median;
+printf "Stdev\t%0.2e\n", $stdev;
+printf "Sum\t%0.2e\n", $sum;
+
+# Return mean value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+sub mean
+{
+   my $sum = 0;
+   my $count = 0;
+   foreach my $val (@_)
+   {
+      $sum += $val;
+      $count += 1;
+   }
+   if ($count == 0)
+   {
+      return undef;
+   }
+   my $mean = $sum / $count;
+   return $mean;
+}
+
+# Return median value of a list
+#
+# Assumes numeric values (I'm not sure what
+# behavior would be on list with non numeric data)
+#
+# Also assumes no NA (missing) values in the input
+#
+sub median_BAD_DONT_USE
+{
+   my @a = sort @_;
+   return ($a[$#a/2] + $a[@a/2]) / 2;
+}
+
+sub median
+{
+    my @vals = sort {$a <=> $b} @_;
+    my $len = @vals;
+    if($len%2) #odd?
+    {
+        return $vals[int($len/2)];
+    }
+    else #even
+    {
+        return ($vals[int($len/2)-1] + $vals[int($len/2)])/2;
+    }
+}
+
+
+# Calculate standard deviation of a list
+# of numeric values
+sub standard_deviation
+{
+   my @a = @_;
+   if (@a == 0) { return undef; }
+   my $sum = 0;
+   my $n = 0;
+   foreach my $val (@a)
+   {
+      $sum += $val;
+      $n++;
+   }
+   my $mean = $sum / $n;
+   my $sum_delta_squared = 0;
+   foreach my $val (@a)
+   {
+      my $delta = $val - $mean;
+      my $delta_squared = $delta * $delta;
+      $sum_delta_squared += $delta_squared;
+   }
+   # divide by n-1 for "sample standard deviation"
+   # avoid division by zero
+   if ($n <= 1) { return undef; }
+   my $variance = $sum_delta_squared / ($n-1);
+   my $standard_deviation = $variance ** 0.5;
+   return $standard_deviation;
+}
+

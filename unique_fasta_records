@@ -1,0 +1,136 @@
+#!/usr/bin/perl
+
+# output the fasta records unique to two files
+# 
+# unique records from file 1 will go to stdout
+# unique records from file 2 will go to stderr
+#
+# Mark Stenglein, Oct 5, 2011
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+  output the fasta records unique to two files
+
+  unique records from file 1 will go to stdout
+  unique records from file 2 will go to stderr
+   
+  usage: $0 [-p delimiter] <fasta_file_1> <fasta_file_2>
+
+  -p delimiter     these are paired-end files.  
+                   ignore everything after delimiter in the fasta header
+
+USAGE
+
+my $print_usage = 0;
+my $delimiter = undef;
+
+if (scalar @ARGV == 0) { print $usage and exit; }
+
+GetOptions( "h" => \$print_usage ,
+            "p=s" => \$delimiter );
+
+if ($print_usage) { print $usage and exit; }
+
+# print "delimiter: XX$delimiter";
+# print "XX\n";
+
+my $f1 = shift or print $usage and exit;
+my $f2 = shift or print $usage and exit;
+
+open (my $fh1, "<", $f1) or print $usage and die ($!);
+open (my $fh2, "<", $f2) or print $usage and die ($!);
+
+# hashes will store headers and seqs
+my %f1_headers = ();
+my %f2_headers = ();
+
+# this parses both files twice, perhaps suboptimal, but it works
+
+while (<$fh1>)
+{
+   chomp;
+   if (/^>/)
+   {
+      my $header = $_;
+      if (($delimiter) && (/(\S+)$delimiter/))
+      {
+         $header = $1;
+      }
+      $f1_headers{$header} = 1;
+   }
+}
+
+while (<$fh2>)
+{
+   chomp;
+   if (/^>/)
+   {
+      my $header = $_;
+      if (($delimiter) && (/(\S+)$delimiter/))
+      {
+         $header = $1;
+      }
+      $f2_headers{$header} = 1;
+   }
+}
+
+# go back to beginning of files
+seek($fh1,0,0);
+seek($fh2,0,0);
+
+my $printing = 0;
+while (<$fh1>)
+{
+   chomp;
+   if (/^>/)
+   {
+      my $header = $_;
+      if (($delimiter) && (/(\S+)$delimiter/))
+      {
+         $header = $1;
+      }
+
+      if ($f1_headers{$header} and not $f2_headers{$header})
+      {
+         $printing = 1;
+      }
+      else
+      {
+         $printing = 0;
+      }
+   }
+   if ($printing)
+   {
+      print "$_\n";
+   }
+}
+
+my $printing = 0;
+while (<$fh2>)
+{
+   chomp;
+   if (/^>/)
+   {
+      my $header = $_;
+      if (($delimiter) && (/(\S+)$delimiter/))
+      {
+         $header = $1;
+      }
+      if ($f2_headers{$header} and not $f1_headers{$header})
+      {
+         $printing = 1;
+      }
+      else
+      {
+         $printing = 0;
+      }
+   }
+   if ($printing)
+   {
+      warn "$_\n";
+   }
+}
+

@@ -1,0 +1,108 @@
+#!/usr/bin/perl
+
+# split sequences from a fasta file into those
+# whose headers are listed in another file and those 
+# whose headers aren't
+#
+# Mark Stenglein, May 27, 2011
+#
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+my $header_regexp = undef;
+
+my $usage = <<USAGE;
+  split sequences from a fasta file into those
+  whose headers are listed in another file (to stderr)
+  and those whose headers aren't listed (to stdout)
+
+  Can specify a regular expression that allows you to use
+  part of the header line as the string to compare.  
+
+  Mark Stenglein, May 27, 2011
+
+  usage: split_fasta_file [-h] [-r regexp] <header_list_file> <fasta_file>
+
+  -h         print this message
+
+  -r regexp  specify a regular expression (see above).
+             should be quoted and have parentheses around
+             the portion of the header line you want to use.
+
+             for example: -r '(\\S)+\\s+' 
+             -> This will use everything in header line 
+             before first whitespace 
+
+             default: use whole header line
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit;}
+
+GetOptions("h" => \$print_usage,
+           "r=s" => \$header_regexp);
+
+if ($print_usage) {print $usage and exit;}
+
+my $to_remove_filename = shift or die ($usage);
+my $fasta_filename = shift or die ($usage);
+
+open (my $to_remove_fh, "<", $to_remove_filename) or die ($usage);
+
+my %to_remove = ();
+
+while (<$to_remove_fh>)
+{
+   chomp;
+   my $header = $_;
+   if ($header_regexp)
+   {
+      if ($header =~ /$header_regexp/)
+      {
+         $header = $1;
+      }
+   }
+   $to_remove{$header} += 1;
+}
+
+open (my $fh, "<", $fasta_filename) or die ($usage);
+my $listed_header = 0;
+
+while (<$fh>)
+{
+   chomp;
+   # header line
+   if (/^>(.*)/)
+   {
+      my $header = $1;
+      if ($header_regexp)
+      {
+         if ($header =~ /$header_regexp/)
+         {
+            $header = $1;
+         }
+      }
+      if (!$to_remove{$header})
+      {
+         ## warn "header $header not listed\n";
+         $listed_header = 0;
+      }
+      else
+      {
+         ## warn "header $header listed\n";
+         $listed_header = 1;
+      }
+   }
+   if ($listed_header)
+   {
+      warn "$_\n";
+   }
+   else 
+   {
+      print "$_\n";
+   }
+}
+
+close ($fh);
