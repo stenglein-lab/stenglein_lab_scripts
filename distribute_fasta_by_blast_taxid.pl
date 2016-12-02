@@ -160,8 +160,8 @@ while ($fasta_file && $blast_file)
 {
    my %queries = ();
    
-   open (my $fasta_fh, "<", $fasta_file) or warn ("error: couldn't open FASTA file $fasta_file\n");
-   open (my $blast_fh, "<", $blast_file) or warn ("error: couldn't open BLAST file $blast_file\n");
+   open (my $fasta_fh, "<", $fasta_file) or die ("error: couldn't open FASTA file $fasta_file\n");
+   open (my $blast_fh, "<", $blast_file) or die ("error: couldn't open BLAST file $blast_file\n");
 
    if ($blast_fh && $fasta_fh)
    {
