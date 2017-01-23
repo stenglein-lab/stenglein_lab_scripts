@@ -1,0 +1,118 @@
+#!/usr/bin/perl
+
+# splits a fasta file into a set of new files, with 
+# one file per sequence (record) in the original file
+#
+# returns (outputs) the names of the files
+#
+# Mark Stenglein, Jan 20, 2017 [a dark day]
+#
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+my $header_regexp = undef;
+
+my $usage = <<USAGE;
+
+  This script splits a fasta file into a set of new files
+  with one new file per sequence (record) in the original file
+
+  The files will be named according to the sequence identifier
+  (specifically, the characters after > in the header line up to 
+  the first whitespace character)
+
+  The script outputs the names of the files
+
+  Mark Stenglein, Jan 20, 2017  :< 
+
+  usage: $0 [-h]  <fasta/q_file>
+
+  -h         print this message
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit;}
+
+GetOptions("h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit;}
+
+my $header = undef;
+my $seq = undef;
+
+my $line_count = 0;
+my $first_line = 1;
+my $fastq_file = 0;
+
+my $fh = undef;
+
+while (<>)
+{
+   chomp;
+   $line_count += 1;
+
+   # determine if fasta or fastq
+   if ($first_line)
+   {
+      $first_line = 0;
+      if (/^@/)
+      {
+         $fastq_file = 1;
+      }
+      elsif (!/^>/)
+      {
+         warn "\nerror - was expecting fasta or fastq input. First line = $_\n\n";
+         print $usage and exit;
+      }
+   }
+
+   if ($line_count == 1)
+   {
+		# store line to output later
+		$header = $_;
+
+      # parse header and determine whether to output record or not
+      if (!$fastq_file and (!/^>/))
+      {
+         warn "\nerror - was expecting 2-line fasta input. Line = $_\n\n";
+         print $usage and exit;
+      }
+      elsif ($fastq_file and (!/^@/))
+      {
+         warn "\nerror - was expecting 4-line fastq input. Line = $_\n\n";
+         print $usage and exit;
+      }
+
+		# capture non-white space characters up to first whitespace - will be file name
+      if (/^[>@](\S+)\s*/)
+      {
+         my $seq_id = $1;
+			my $filename = $seq_id.".fa";
+			print "$filename\n";
+			open ($fh, ">", $filename) or die "error, couldn't open file: $filename for output\n";
+      }
+   }
+   elsif ($line_count == 2 and !$fastq_file)
+   {
+		# store line to output later
+		$seq = $_;
+
+		if (!$fastq_file)
+		{
+			# fasta format
+         $line_count = 0;
+		   print $fh "$header\n$seq\n";
+			close ($fh);
+		}
+   }
+   elsif ($line_count == 4 and $fastq_file)
+   {
+		my $qual = $_;
+      $line_count = 0;
+		print $fh "$header\n$seq\n+\n$qual\n";
+		close ($fh);
+   }
+}
+

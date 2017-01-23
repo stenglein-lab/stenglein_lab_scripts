@@ -13,7 +13,7 @@ my $usage = <<USAGE;
 
    -h               print this message
    -w window_size   use the indicated window size
-   -s step_size     size to step between windows
+   -o offset        offset between windows
 
 USAGE
 
@@ -21,7 +21,7 @@ my $window_size = 100;
 my $step_size = 1;
 my $print_usage = 0;
 
-GetOptions("h" => \$print_usage, "w=i" => \$window_size, "s=i" => \$step_size);
+GetOptions("h" => \$print_usage, "w=i" => \$window_size, "o=i" => \$step_size);
 
 if ($print_usage) { print $usage and exit;}
 
@@ -75,7 +75,7 @@ sub output_gc
    {
       $step_size = $window_size;
    }
-   for (my $i = 0; $i <= (length ($sequence) - $window_size); $i += $step_size )
+   for (my $i = 1; $i <= (length ($sequence) - $window_size); $i += $step_size )
    {
       my $window = uc (substr($sequence, $i, $window_size));
       my $num_g = ($window =~ s/G/G/g);

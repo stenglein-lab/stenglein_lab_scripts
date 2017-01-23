@@ -86,7 +86,14 @@ if (defined $target_count)
    }
    my $grep_cmd ="grep -c \\\> $fasta_file";
    my $fasta_count = `$grep_cmd`;
-   $n = $fasta_count / $target_count;
+	if ($fasta_count < $target_count)
+	{
+	   $n = 1;
+	}
+	else
+	{
+      $n = $fasta_count / $target_count;
+	}
 }
 
 if ($n <= 0)
@@ -95,12 +102,24 @@ if ($n <= 0)
    die ($usage);
 }
 
+my $print_all_lines = 0;
+if ($n == 1)
+{
+   $print_all_lines = 1;
+}
+
 my $print_next_lines = 0;
 my $seq = undef;
 
 # iterate through fasta input
 while (<$fasta_fh>)
 {
+	if ($print_all_lines)
+	{
+	   print "$_";
+		next;
+	}
+
 	# header line
    if (/^>/)
    {
