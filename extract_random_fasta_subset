@@ -5,19 +5,23 @@ use strict;
 
 my $usage = <<USAGE;
 
- This script extracts a random subset of a set of fasta records
+ This script extracts a random subset of a set of fasta/q records
  reads from a file or stdin and writes to stdount
 
  It also has the ability to only output a random subsequence of 
  a particular length from the random subset of records
 
+ It will convert multi-line fasta format into 2-line fasta format.
+
  The script traverses the input once, so it won't output any record 
  more than once.
+
+ Reads from stdin and writes to stdout
 
   Mark Stenglein Dec, 2010
 
 
- usage: extract_random_fasta_subset [-n denominator] [-c target_count] [-s subseq_size] fasta_file
+ usage: extract_random_fasta_subset [-n denominator] [-c target_count] [-s subseq_size] fasta/q_file
 
  -n denominator    approximately one out of every n sequences will 
                    be output.  default = 100 
@@ -25,8 +29,9 @@ my $usage = <<USAGE;
  -c target_count   the denominator will be set so that approximately 
                    target_count sequences will be output.  Note that
                    this option takes longer because the number of
-                   fasta records has to be determined ahead of time.
-                   Also, this won't work for piped or redirected stdin
+                   fasta/q records has to be determined ahead of time.
+
+                   This mode won't work for piped or redirected stdin
                    (must specify a file).
 
  -s subseq_size    from each randomly selected record to be output, only
@@ -38,7 +43,7 @@ my $usage = <<USAGE;
 
   extract_random_fasta_subset -n 1000 my_fasta.fasta         # will output a random subset of ~1/1000 records
 
-  extract_random_fasta_subset -c 10000 my_fasta.fasta        # will output a random subset of ~10000 records
+  extract_random_fasta_subset -c 10000 my_fastq.fastq        # will output a random subset of ~10000 records
  
   extract_random_fasta_subset -n 10 -s 100 my_fasta.fasta    # will output a random subsequence of length 100
                                                              # from a random subset of ~1/10 records
@@ -49,29 +54,33 @@ my $print_usage = 0;
 my $n = 100;
 my $target_count=undef;
 my $subseq_size=undef;
-my $fasta_file = undef;
-my $fasta_fh = undef;
+my $fastx_file = undef;
+my $fastx_fh = undef;
+my $fastq_format = 0;
 
 # if no stdin or no file specified, don't stall
 if ( -t STDIN and not @ARGV ) { print $usage and exit; }
 
+# get command line options
 GetOptions ("n=i" => \$n, "c=i" => \$target_count, "s=i" => \$subseq_size, "h" => \$print_usage);
 
 if ($print_usage) {print $usage and exit; }
 
-# user specified fasta file
-if ($fasta_file = shift)
+# user specified fasta/q file
+if ($fastx_file = shift)
 {
-   open ($fasta_fh, "<", $fasta_file) 
-     or print $usage and die ("error, couldn't open file: $fasta_file\n");
+   open ($fastx_fh, "<", $fastx_file) 
+     or print $usage and die ("error, couldn't open file: $fastx_file\n");
 }
 else
 {
    # no file, read from stdin
    # open stdin
-   open ($fasta_fh, "<-") 
+   open ($fastx_fh, "<-") 
      or print $usage and die ("error, couldn't open stdin\n");
 }
+
+
 
 # shooting for a subset of a particular # of records
 # to do this, need to count the # of fasta records ahead of time
@@ -79,111 +88,298 @@ else
 # so could be slow for a big fasta file
 if (defined $target_count)
 {
-   if (!defined $fasta_file)
+   if (!defined $fastx_file)
    {
       print $usage; 
-      die ("error: if specifying target_count, must pass fasta filename on command line\n");
+      die ("error: if specifying target_count, must pass fasta/q filename on command line\n");
    }
-   my $grep_cmd ="grep -c \\\> $fasta_file";
-   my $fasta_count = `$grep_cmd`;
-	if ($fasta_count < $target_count)
+
+   # check to see if fasta or fastq
+   # peek at first character to see if fasta or fastq file...
+   my $first_char = getc ($fastx_fh);
+
+	if (!defined $first_char)
 	{
+		# empty input, nothing to do
+	   exit;
+	}
+
+   if ($first_char eq ">")
+   {
+      $fastq_format = 0;
+   }
+   elsif ($first_char eq "@")
+   {
+      $fastq_format = 1;
+   }
+   else
+   {
+      die ("error: file: $fastx_file doesn't appear to be fasta or fastq format.  First char: $first_char\n");
+   }
+
+   # rewind to beginning of file after peeking
+   seek ($fastx_fh, 0, 0);
+
+	my $fastx_count = undef;
+	if ($fastq_format)
+	{
+		# TODO: check that wc command exists and returns successfully
+		my $num_lines = `wc -l $fastx_file`;
+		# assume 4-line fastq format: we'll confirm below 
+		$fastx_count = $num_lines / 4;
+	}
+	else
+	{
+		# TODO: check that grep command exists and returns successfully
+      my $grep_cmd = "grep -c \\\> $fastx_file";
+      $fastx_count = `$grep_cmd`;
+	}
+	if ($fastx_count < $target_count)
+	{
+		# we will output all records if target count is > actual count
 	   $n = 1;
 	}
 	else
 	{
-      $n = $fasta_count / $target_count;
+      $n = $fastx_count / $target_count;
 	}
 }
 
+# check to see if denominator makes sense.
 if ($n <= 0)
 {
    warn ("invalid denominator: $n\n");
    die ($usage);
 }
 
+# are we just going to output every record?
 my $print_all_lines = 0;
 if ($n == 1)
 {
    $print_all_lines = 1;
 }
 
-my $print_next_lines = 0;
-my $seq = undef;
-
-# iterate through fasta input
-while (<$fasta_fh>)
+# if we are going to output all the records, this is pretty simple...
+if ($print_all_lines)
 {
-	if ($print_all_lines)
-	{
+   while (<$fastx_fh>)
+   {
 	   print "$_";
-		next;
+	}
+	exit;
+}
+
+my $first_line = 1;
+my $another_record = 1;
+
+# parse fastx file
+while ($another_record)
+{
+	my $header = undef;
+	my $seq = undef;
+	my $qual_header = undef;
+	my $qual = undef;
+
+	# have to do this in case reading from stdin - in that case wouldn't know
+	# if fasta or fastq format until first line read, and can't rewind stdin (from e.g. pipe)
+	if ($first_line)
+	{
+	   $first_line = <$fastx_fh>;
+		if (!defined $first_line)
+		{
+			# empty input, nothing to do
+		   exit;
+		}
+		elsif ($first_line =~ /^@/)
+		{
+		   $fastq_format = 1;
+	      ($header, $seq, $qual_header, $qual) = read_fastq_record($fastx_fh, $first_line);
+		}
+		elsif ($first_line =~ /^>/)
+		{
+	      ($header, $seq) = read_fasta_record($fastx_fh, $first_line);
+		}
+		else
+		{
+         die ("error: was expecting fasta or fastq format.  First line: $first_line\n");
+		}
+	   $first_line = 0;
+	}
+	else
+	{
+	   # read the rest of the lines
+      if ($fastq_format)
+	   {
+	      ($header, $seq, $qual_header, $qual) = read_fastq_record($fastx_fh);
+	   }
+	   else
+	   {
+	      ($header, $seq) = read_fasta_record($fastx_fh);
+	   }
 	}
 
-	# header line
-   if (/^>/)
-   {
-      if ($print_next_lines == 1)
-      {
-         # if we are only going to output a subsequence of this record
-         if ($seq and $subseq_size)
-         {
-            # decide what random subsequence to output
-            my $seq_length = length $seq;
-            if ($seq_length <= $subseq_size)
-            {
-               print "$seq\n";
-            }
-            else
-            {
-               my $rand_start = int(rand($seq_length - $subseq_size));
-               my $subseq = substr($seq, $rand_start, $subseq_size);
-               print "$subseq\n";
-            }
-         }
-         $print_next_lines = 0;
-         $seq = undef;
-      }
+	if (!defined $header)
+	{
+	   # no more records, break out of while loop
+	   $another_record = 0;
+	   last;
+	}
 
-		# decide whether to print the record
-      # this simulates a one in $n chance of occuring
-		# rand() is not perfectly random but close enough for this purpose
-      my $random_integer = int(rand($n));
-      if ($random_integer == 1)
-      {
-         $print_next_lines = 1;
-         print "$_";
-      }
-   }
-   elsif (($print_next_lines) and (!$subseq_size))
-   {
-		# print out the whole sequence
-      print "$_";
-   }
-   elsif (($print_next_lines) and ($subseq_size))
-   {
-		# accumulate sequence for multi-line fasta
-      $seq .= $_;
-   }
+	# this sub will decide whether to output the seq or not
+	process_record($header, $seq, $qual_header, $qual);
 }
 
-# do this again in case last record was going to be output
-# and we are only outputting subsequences
-if ($print_next_lines == 1)
+sub process_record
 {
-   if ($seq and $subseq_size)
+   # are we going to output this record?
+	# decide whether to print the record
+   # this simulates a one in $n chance of occuring
+	# rand() is not perfectly random but close enough for this purpose
+   my $random_integer = int(rand($n));
+   if ($random_integer != 1)
    {
-      # we are only going to output a subsequence of this record
-      my $seq_length = length $seq;
-      if ($seq_length <= $subseq_size)
-      {
-         print "$seq\n";
-      }
-      else
-      {
-         my $rand_start = int(rand($seq_length - $subseq_size));
-         my $subseq = substr($seq, $rand_start, $subseq_size);
-         print "$subseq\n";
-      }
+		# don't output this record
+	   return;
    }
+
+	# get args
+	my ($header, $seq, $qual_header, $qual) = @_;
+
+	# fastq format
+	if ($fastq_format)
+	{
+	   print "$header\n$seq\n$qual_header\n$qual\n";
+	}
+	else
+	{
+		# fasta format
+		print "$header\n";
+      if ($seq and $subseq_size)
+      {
+         # we are only going to output a subsequence of this record
+         my $seq_length = length $seq;
+         if ($seq_length <= $subseq_size)
+         {
+            print "$seq\n";
+         }
+         else
+         {
+            my $rand_start = int(rand($seq_length - $subseq_size));
+            my $subseq = substr($seq, $rand_start, $subseq_size);
+            print "$subseq\n";
+         }
+      }
+		else
+		{
+		   print "$seq\n";
+		}
+	}
 }
+
+
+
+# keeps track of subsequent header line for multi-line fasta
+my $next_header_line = undef;
+
+# reads a fasta record from a fh (passed as arg)
+# returns the header, seq
+# as the elements of a list returned
+# 
+# This assumes that sequence is only on one line
+sub read_fasta_record
+{
+   # first get the header.  
+   my $fh = $_[0];
+	# get a line passed in as an optional arg
+	my $first_line = $_[1];
+
+	my $header = undef;
+
+	if ($first_line)
+	{
+      $header = $first_line;
+	}
+	elsif ($next_header_line)
+	{
+      $header = $next_header_line;
+		$next_header_line = undef;
+	}
+	else
+	{
+      $header = <$fh>;
+	}
+   if (!defined $header) { return undef; } # no more records
+
+   # make sure it's a fasta header
+   if (!($header =~ /^>/))
+   { 
+      print "error reading fasta file.  Was expecting a fasta header, instead read this:\n$header\n";
+      exit;
+   }
+   chomp $header;
+
+   my $seq = undef;
+   
+   while (my $this_line = <$fh>)
+   {
+      # keep track of file position in case multi-line fasta 
+      if ($this_line =~ /^>/)
+      {
+         # fasta header. keep track of it for next call
+         $next_header_line = $this_line;
+         last;
+      }
+      $seq .= $this_line;
+   } 
+   chomp $seq;
+
+   if (!$seq) 
+   { 
+      print "error reading fasta file.  No sequence for header $header \n";
+      exit;
+   }
+
+   return ($header, $seq);
+}
+
+
+# reads a fastq record from a fh (passed as arg)
+# returns the header, seq, qual_header, and $qual 
+# as the elements of a list returned
+# 
+# This assumes 4-line fastq format
+sub read_fastq_record
+{
+   my $fh = $_[0];
+   my $first_line = $_[1];
+
+   my $header = undef;
+   if ($first_line)
+	{
+      $header = $first_line;
+	}
+	else
+	{
+      $header = <$fh>;
+	}
+
+   if (!defined $header) { return undef; } # no more records
+   # make sure it's a fastq header
+   if (!($header =~ /^@/))
+   { 
+      print "error reading fastq file.  Was expecting 4-line fastq format. read this:\n$header\n";
+      exit;
+   }
+
+
+   chomp $header;
+   my $seq = <$fh>;
+   chomp $seq;
+   my $qual_header = <$fh>;
+   chomp $qual_header;
+   my $qual = <$fh>;
+   chomp $qual;
+   return ($header, $seq, $qual_header, $qual);
+}
+
+
