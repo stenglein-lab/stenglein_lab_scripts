@@ -143,6 +143,9 @@ if (defined $target_count)
 	{
       $n = $fastx_count / $target_count;
 	}
+
+	my $n_f = sprintf ("%0.2f", $n);
+	warn "going to extract ~ $target_count reads out of $fastx_count in $fastx_file (~ 1 per $n_f sequences)\n";
 }
 
 # check to see if denominator makes sense.
@@ -233,10 +236,21 @@ sub process_record
 {
    # are we going to output this record?
 	# decide whether to print the record
+
+   ### this approach didn't work well for small Ns
+   ### my $random_integer = int(rand($n));
+   ### if ($random_integer != 1)
+
+   # calculate probablility that any sequence should be output and 
+   # then generate a random fraction between 0 and 1 
+   # and don't output unless random fraction <= probability
+	#
    # this simulates a one in $n chance of occuring
 	# rand() is not perfectly random but close enough for this purpose
-   my $random_integer = int(rand($n));
-   if ($random_integer != 1)
+
+   my $output_probability = 1 / $n;
+   my $random_fraction = rand(1);
+   if ($random_fraction > $output_probability)
    {
 		# don't output this record
 	   return;

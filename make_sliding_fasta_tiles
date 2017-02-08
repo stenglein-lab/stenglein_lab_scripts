@@ -93,7 +93,9 @@ sub output_seq_tiles
       if ($print_window_start)
       {
          my $start_nt = $start + 1;
-         print ">$start_nt\n";
+         print ">$header";
+         print "_$start_nt\n";
+         # print ">$start_nt\n";
       }
       else
       {
