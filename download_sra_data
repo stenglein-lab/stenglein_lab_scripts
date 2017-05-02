@@ -19,8 +19,8 @@ cat << EOF
 
 
  Dependencies: 
-  (1) internet access 
-  (2) wget
+  (1) internet access
+  (2) wget or curl
 
 
  Usage:
@@ -111,10 +111,32 @@ do
 	   sra_acc_6=${sra_acc:0:6}
 	   full_url="${base_url}${sra_acc_3}/${sra_acc_6}/${sra_acc}/${sra_acc}.sra"
 
-	   echo "wget $full_url"
+      # check to see if curl exists
+      if [ -x "$(command -v curl)" ] 
+		then
 
-		# actually get the data using wget
-	   wget $full_url
+			# we'll use curl
+         fetch_cmd="curl -O"
+
+         # if no curl, check for wget
+
+      elif [ -x "$(command -v wget)" ] 
+		then
+
+		   # we'll use wget
+         fetch_cmd=wget
+
+		else 
+
+			# neither curl nor wget
+         echo 'Error: neither curl nor wget are installed.  Exiting.' >&2
+			exit
+
+      fi
+
+		# actually get the data using wget or curl
+	   echo "$fetch_cmd $full_url"
+	   $fetch_cmd $full_url
 
 	else
 
