@@ -8,11 +8,20 @@ echo "*************************************************"
 echo "*** building indexes from nr and nt databases ***"
 echo "*************************************************"
 
-# first, create fasta files from blast dbs
-echo " convert nt database to fasta "
-blastdbcmd -entry all -db nt -out nt.fasta -target_only
-echo "convert nr database to fasta "
-blastdbcmd -entry all -dbtype prot -db nr -out nr.fasta -target_only
+### 
+### # first, create fasta files from blast dbs
+### echo " convert nt database to fasta "
+### blastdbcmd -entry all -db nt -out nt.fasta -target_only
+### echo "convert nr database to fasta "
+### blastdbcmd -entry all -dbtype prot -db nr -out nr.fasta -target_only
+
+# download nr & nt dbs in fasta format 
+wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
+gunzip nt.gz 
+gunzip nr.gz 
+
+exit
 
 # build new indices in a separate directory
 
@@ -29,13 +38,13 @@ echo "creating rapsearch index of nr database"
 date
 prerapsearch -d nr.fasta -n nr_rap_index
 
+echo "creating GSNAP index of nt database"
+date
+gmap_build -D . -d nt nt.fasta -L
+
 echo "creating diamond index of nr database"
 date
 diamond makedb --in nr.fasta -d nr
-
-echo "creating GSNAP index of nt database"
-date
-gmap_build -D . -d nt nt.fasta
 
 ## echo "creating HISAT/Bowtie2 index of nt database"
 ## date

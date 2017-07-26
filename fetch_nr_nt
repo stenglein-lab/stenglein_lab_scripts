@@ -66,10 +66,6 @@ date
 
 date >> nr_nt_updated_dates.txt
 
-# remove tar.gz files
-# echo "deleting .tar.gz files"
-# rm -f nt*.tar.gz
-# rm -f nr*.tar.gz
 
 # this script builds indexes from the nr and nt dbs
 echo "**************************"
@@ -77,3 +73,8 @@ echo "*** rebuilding indexes ***"
 echo "**************************"
 date
 ./build_indexes
+
+# remove tar.gz files
+echo "deleting .tar.gz files"
+rm -f nt*.tar.gz
+rm -f nr*.tar.gz
