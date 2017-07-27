@@ -1,10 +1,27 @@
-# How I setup the cctsi-103 server
+#!/bin/bash
+#
+# Setup a Stenglein lab analysis server
+#
+# This is based on How I setup the cctsi-103 server
 # goal: create a re-usable script for server setup
 #
 # This done on cctsi-103 server with Ubuntu 16.04
 # 
 # 5/17/2017
 # Mark Stenglein
+
+# TODO: convert this to make/snakemake format
+
+
+# kludgy way to only execute part of the script
+if [ "dont_do_this_part_already_done" = "XXX" ]
+then
+
+echo "bla bla bla" > /dev/null
+
+# just keep moving this else down to keep adding to what will get done
+else
+
 
 # update packages
 echo "Going to run Ubuntu updates. Press enter to continue."
@@ -31,15 +48,15 @@ sudo ufw status
 
 # install HDF5 libs, for utils like h5dump
 sudo apt-get update
-sudo apt-get install libhdf5-serial-dev
-sudo apt install hdf5-tools
+sudo apt-get install -y libhdf5-serial-dev
+sudo apt install -y hdf5-tools
 
 # Now, install LAMP: Apache, MySQL, PHP (precursors for webmin)
 # see: https://www.digitalocean.com/community/tutorials/how-to-install-linux-apache-mysql-php-lamp-stack-on-ubuntu-16-04
 
 # install Apache
 sudo apt-get update
-sudo apt-get install apache2
+sudo apt-get install -y apache2
 
 echo "Checking Apache Config.  Should see 'Sytnax OK' as output"
 sudo apache2ctl configtest
@@ -54,7 +71,7 @@ echo "if you navigate to this host's hostname in a browser you should see a defa
 
 # MySQL
 echo "setting up MySQL"
-sudo apt-get install mysql-server
+sudo apt-get install -y mysql-server
 
 echo "securing MySQL"
 echo "answer No to first 2 questions (VALIDATE PASSWORD PLUGIN and Change the password for root and Yes to the rest.  See:"
@@ -64,7 +81,7 @@ mysql_secure_installation
 
 # PHP
 echo "installing PHP"
-sudo apt-get install php libapache2-mod-php php-mcrypt php-mysql
+sudo apt-get install -y php libapache2-mod-php php-mcrypt php-mysql
 
 # echo "give PHP files priority over HTML"
 
@@ -91,7 +108,7 @@ sudo apt-get update
 # actually install Webmin
 echo "installing webmin."
 echo "you should see output at end like: Webmin install complete. You can now login to https://..."
-sudo apt-get install webmin
+sudo apt-get install -y webmin
 
 
 # allow Webmin through firewall
@@ -145,11 +162,12 @@ echo "$bashrc"
 echo "$bashrc" >> ~/.bashrc
 
 # setup ~/bin
-cd
-mkdir bin
-cd bin
-# clone scripts from github
-git clone https://github.com/stenglein-lab/stenglein_lab_scripts.git .
+# do this manually  before running this script.
+## cd
+## mkdir bin
+## cd bin
+## clone scripts from github
+## git clone https://github.com/stenglein-lab/stenglein_lab_scripts.git .
 
 # to update local repo from remote: run: git fetch; git pull
 
@@ -157,35 +175,32 @@ git clone https://github.com/stenglein-lab/stenglein_lab_scripts.git .
 cd /home
 sudo mkdir apps
 cd apps
-sudo chown -R mdstengl .
+sudo chown -R `whoami` .
 mkdir bin
 
 # download unzip
-sudo apt-get install zip unzip
+sudo apt-get install -y zip unzip
 
 
 # install R
 echo "going to install R"
 echo "enter to continue"
 read x
-sudo apt-get install r-base
+sudo apt-get install -y r-base
 
 # install Java
 sudo apt-get update
-sudo apt-get install default-jdk
+sudo apt-get install -y default-jdk
 echo "running java -version: should work"
 echo "enter to continue"
 read x
+echo "java -version"
 java -version
-
+echo "enter to continue"
+read x
 
 # install pip (python package manager)
-sudo apt-get install python-pip
-
-# TODO:
-# MegaCli (RAID analysis)
-# setup RAID monitoring
-# setup rsync (???)
+sudo apt-get install -y python-pip
 
 
 # Setup /home/databases folder
@@ -194,24 +209,18 @@ sudo mkdir databases
 sudo chown mdstengl databases
 cd databases
 
-# TODO: databases
-# rsync from 101
-
-# TODO: setup cron jobs
 
 
 # install various apps
 
 # download bowtie2
-echo Download bowtie2 binaries from source-forge, here:
-echo "http://bowtie-bio.sourceforge.net/bowtie2/index.shtml"
-echo "and transfer to server /home/apps folder"
-echo enter to continue
-read x
-echo "unzip bowtie2 ZIP file in apps directory and copy executables to /home/apps/bin directory"
-echo "you can delete ZIP file too"
-echo enter to continue
-read x
+echo installing bowtie2
+cd /home/apps
+wget https://downloads.sourceforge.net/project/bowtie-bio/bowtie2/2.3.2/bowtie2-2.3.2-linux-x86_64.zip
+unzip bowtie2-2.3.2-linux-x86_64.zip
+cd bowtie2-2.3.2
+cp bowtie2* /home/apps/bin
+cd /home/apps
 
 # install cutadapt
 echo "installing cutadapt.  Note, won't install to /home/apps/bin"
@@ -236,7 +245,7 @@ ln -s ../FastQC/fastqc fastqc
 echo "going to install galaxy"
 gal_ver="release_17.01"
 echo "NOTE: going to install version: $gal_Ver"
-echo "could update by running git checkout & git pull.   See: https://galaxyproject.org/admin/get-galaxy/ "
+echo "could update in future by running git checkout & git pull.   See: https://galaxyproject.org/admin/get-galaxy/ "
 echo enter to continue
 cd /home/apps
 git clone -b $gal_ver https://github.com/galaxyproject/galaxy.git
@@ -250,9 +259,11 @@ echo "host = 0.0.0.0"
 echo enter to edit
 read x
 vi galaxy.ini
-cd ..
+cd /home/apps
 
-sh run.sh
+# to run galaxy:
+# echo: to run galaxy: sh run.sh
+# sh run.sh
 
 # install canu assembler
 echo install canu assembler
@@ -264,9 +275,11 @@ cd /home/apps
 # install gnuplot
 echo install gnuplot
 sudo apt-get update
-sudo apt-get install gnuplot
+sudo apt-get install -y gnuplot
 
 # install graphmap
+echo install graphmap
+cd /home/apps
 echo install graphmap
 git clone https://github.com/isovic/graphmap.git
 cd graphmap
@@ -278,7 +291,7 @@ cd /home/apps
 # install htop
 echo install htop
 sudo apt-get update
-sudo apt-get install htop
+sudo apt-get install -y htop
 
 # install biopython and numpy
 echo install biopython and numpy
@@ -297,7 +310,7 @@ sudo python setup.py install
 cd /home/apps
 
 # install iotop 
-sudo apt-get install iotop -y
+sudo apt-get install -y iotop -y
 
 # install nanopolish
 echo install nanopolish
@@ -310,13 +323,15 @@ cd scripts
 cp * /home/apps/bin
 cd /home/apps
 
+
 # install cmake (SPAdes,etc dependency)
-echo install cmake (SPAdes,etc dependency)
+echo "install cmake (SPAdes,etc dependency)"
 sudo apt-get update
-sudo apt install cmake
+sudo apt install -y cmake
 
 # install SPADES
 echo install SPADES
+cd /home/apps
 wget http://cab.spbu.ru/files/release3.10.1/SPAdes-3.10.1.tar.gz
 tar -xzf SPAdes-3.10.1.tar.gz
 cd SPAdes-3.10.1
@@ -333,7 +348,7 @@ cd /home/apps
 
 # install parallel
 echo install parallel
-sudo apt-get install parallel
+sudo apt-get install -y parallel
 
 # install samtools
 echo install samtools
@@ -424,7 +439,7 @@ cp -R bin/ncbi /home/apps/bin
 cd /home/apps
 
 # Install BOOST
-sudo apt-get install libboost-all-dev
+sudo apt-get install -y libboost-all-dev
 
 
 # install RAPSearch
@@ -447,30 +462,166 @@ mv diamond bin
 
 ### # install NFS client
 ### sudo apt-get update
-### sudo apt-get install nfs-common
+### sudo apt-get install -y nfs-common
 
 
+# install centrifuge
+echo install centrifuge
+cd /home/apps
+git clone https://github.com/infphilo/centrifuge
+cd centrifuge
+make
+make install prefix=/home/apps
+cd /home/apps
 
-# BEAST
-# biopython
-# centrifuge
-# centroid fold
-# stringtie
-# htslib
-# jmodeltest
+# install BEAST
+echo install BEAST
+cd /home/apps
+wget https://github.com/CompEvol/beast2/releases/download/v2.4.7/BEAST.v2.4.7.Linux.tgz
+tar xvf BEAST.v2.4.7.Linux.tgz
+# TODO: install BEAST to /home/apps possible?
+
+## # install Vienna RNA package - requirement of centroidfold
+## echo install Vienna RNA package - requirement of centroidfold
+## cd /home/apps
+## wget https://www.tbi.univie.ac.at/RNA/download/sourcecode/2_3_x/ViennaRNA-2.3.5.tar.gz
+## tar xvf ViennaRNA-2.3.5.tar.gz
+## cd ViennaRNA-2.3.5
+## ./configure --prefix=/home/apps
+## make
+## make install
+## cd /home/apps
+## # note: got an error during make and make install.  Worked?
+## # Could use pre-built binaries...
+
+# install centroid fold
+echo install centroid fold
+cd /home/apps
+wget https://github.com/satoken/centroid-rna-package/releases/download/v0.0.15/centroid-rna-package-0.0.15-linux-x86_64.zip
+unzip centroid-rna-package-0.0.15-linux-x86_64.zip 
+cd centroid-rna-package-0.0.15-linux-x86_64/
+cp centroid_* /home/apps/bin
+cd /home/apps
+
+# install stringtie
+echo install stringtie
+cd /home/apps
+wget http://ccb.jhu.edu/software/stringtie/dl/stringtie-1.3.3b.Linux_x86_64.tar.gz
+tar xvf stringtie-1.3.3b.Linux_x86_64.tar.gz
+cp stringtie-1.3.3b.Linux_x86_64/stringtie /home/apps/bin
+cd /home/apps
+
+# install jmodeltest 2
+echo install jmodeltest 2
+cd /home/apps
+wget https://github.com/ddarriba/jmodeltest2/files/157117/jmodeltest-2.1.10.tar.gz
+tar xvf jmodeltest-2.1.10.tar.gz
+# TODO: possible to install to /home/apps/bin?  
+
+## # install khmer using pip
+## echo install khmer using pip
+## pip install --upgrade pip
+## pip install --install-option="--prefix=/home/apps" khmer
+## # TODO: did this even work?
+
+# install freebayes
+echo install freebayes
+cd /home/apps
+git clone --recursive git://github.com/ekg/freebayes.git
+cd freebayes
+make
+cp bin/freebayes bin/bamleftalign /home/apps/bin
+cd /home/apps
+
+# install lofreq
+echo install lofreq
+cd /home/apps
+wget https://downloads.sourceforge.net/project/lofreq/lofreq_star-2.1.2_linux-x86-64.tgz
+tar xvf lofreq_star-2.1.2_linux-x86-64.tgz
+cp lofreq_star-2.1.2/bin/* /home/apps/bin
+cd /home/apps
+
+# install BEAGLE - used by MrBayes, BEAST, PhyML etc
+cd /home/apps
+git clone --depth=1 https://github.com/beagle-dev/beagle-lib.git
+cd beagle-lib
+./autogen.sh
+./configure --prefix=/home/apps
+make install
+
+# install MrBayes
+echo install MrBayes
+cd /home/apps
+wget https://downloads.sourceforge.net/project/mrbayes/mrbayes/3.2.6/mrbayes-3.2.6.tar.gz
+tar xvf mrbayes-3.2.6.tar.gz
+cd mrbayes-3.2.6/src
+autoconf
+./configure --enable-mpi=yes --prefix=/home/apps --with-beagle=/home/apps/
+make
+make install
+cd /home/apps
+
+# install muscle
+echo install muscle
+cd /home/apps
+wget http://www.drive5.com/muscle/downloads3.8.31/muscle3.8.31_i86linux64.tar.gz
+tar xvf muscle3.8.31_i86linux64.tar.gz
+mv muscle3.8.31_i86linux64 /home/apps/bin
+
+# install PhyML
+echo install PhyML
+echo "note: the developers of PhyML would like your name and email.  Please go to: http://www.atgc-montpellier.fr/phyml/binaries.php"
+cd /home/apps
+wget http://www.atgc-montpellier.fr/download/binaries/phyml/PhyML-3.1.zip
+unzip PhyML-3.1.zip
+cp PhyML-3.1/PhyML-3.1_linux64 /home/apps/bin
+cd /home/apps
+
+# install quast
+echo install quast
+cd /home/apps
+wget https://downloads.sourceforge.net/project/quast/quast-4.5.tar.gz
+tar -xzf quast-4.5.tar.gz
+cd quast-4.5
+./install_full.sh
+# TODO: install to /home/apps/bin possible?
+
+# install STAR aligner
+echo install STAR aligner
+cd /home/apps
+git clone https://github.com/alexdobin/STAR.git
+cd STAR/source
+make STAR
+cp STAR /home/apps/bin
+
+# install trimal
+echo install trimal
+cd /home/apps
+git clone https://github.com/scapella/trimal.git
+cd trimal/source
+make
+cp readal trimal statal /home/apps/bin
+cd /home/apps/bin
+
+
 # khmer
-# freebayes
-# lofreq
-# MrBayes
-# Muscle
-# PhyML
-# quast
-# STAR aligner
-# trimal
-# RAPSearch
+# htslib
 
+# TODO: Setup taxonomy db
 # mysql, populate database w/ taxonomy info...
 # download NCBI dbs, make indexes
-# setup cron jobs
-# setup server monitoring w/ NAGIOS
-# make this a snakemake
+# setup cron job to update taxonomy db
+
+# TODO: make this a snakemake or make
+
+# TODO: setup sequence databases
+# rsync from 101?
+# setup cronjob to update nr/nt
+
+# SysAdmin TODO:
+# MegaCli (RAID analysis)
+# setup RAID monitoring
+# setup rsync backup (???)
+# i.e. setup cron jobs
+
+fi
