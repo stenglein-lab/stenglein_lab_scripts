@@ -8,20 +8,21 @@ echo "*************************************************"
 echo "*** building indexes from nr and nt databases ***"
 echo "*************************************************"
 
-### 
+
+# download nr & nt dbs in fasta format 
+# wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
+gunzip nt.gz 
+mv nt nt.fasta
+# gunzip nr.gz 
+mv nr nr.fasta
+
+### old way of creating nr/nt fasta files: from the blast dbs
 ### # first, create fasta files from blast dbs
 ### echo " convert nt database to fasta "
 ### blastdbcmd -entry all -db nt -out nt.fasta -target_only
 ### echo "convert nr database to fasta "
 ### blastdbcmd -entry all -dbtype prot -db nr -out nr.fasta -target_only
-
-# download nr & nt dbs in fasta format 
-wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
-wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
-gunzip nt.gz 
-gunzip nr.gz 
-
-exit
 
 # build new indices in a separate directory
 
@@ -34,9 +35,10 @@ mv nt.fasta $index_dir
 
 cd $index_dir
 
-echo "creating rapsearch index of nr database"
-date
-prerapsearch -d nr.fasta -n nr_rap_index
+### rapsearch not installing smoothly on newer servers - use diamond aligner instead ...  
+### echo "creating rapsearch index of nr database"
+### date
+### prerapsearch -d nr.fasta -n nr_rap_index
 
 echo "creating GSNAP index of nt database"
 date
@@ -49,6 +51,8 @@ diamond makedb --in nr.fasta -d nr
 ## echo "creating HISAT/Bowtie2 index of nt database"
 ## date
 ## hisat-build nt.fasta nt
+
+# TODO: build centrifuge index of nt?
 
 # copy files back to main directory
 # NOTE that this might interfere w/ running 
@@ -72,7 +76,6 @@ mv -f nt ..
 ## # hisat nt index
 ## mv nt*.bt2l ..
 ## mv nt.sources ..
-
 
 echo "done rebuilding indexes"
 date
