@@ -19,8 +19,6 @@ then
 
 echo "bla bla bla" > /dev/null
 
-# just keep moving this else down to keep adding to what will get done
-else
 
 
 # update packages
@@ -77,6 +75,83 @@ echo "securing MySQL"
 echo "answer No to first 2 questions (VALIDATE PASSWORD PLUGIN and Change the password for root and Yes to the rest.  See:"
 echo "https://www.digitalocean.com/community/tutorials/how-to-install-linux-apache-mysql-php-lamp-stack-on-ubuntu-16-04"
 mysql_secure_installation
+
+
+# setup mysql databases for stenglein lab servers
+
+# First, move mysql db to /home, and populate it with NCBI Taxonomy info
+# 
+# Move mysql data directory
+# see:
+# https://stackoverflow.com/questions/1795176/how-to-change-mysql-data-directory
+#
+echo "-----------------------------------------------------------"
+echo "going to do some major work on my sql databases"
+echo "(move data directory, create new dbs and users, etc.)"
+echo " "
+read -p " *** Are you sure you want to continue? ***   (y or Y to continue): " -n 1 -r
+echo " "
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+   echo moving mysql data directory
+   echo "see: https://stackoverflow.com/questions/1795176/how-to-change-mysql-data-directory"
+
+   echo "sudo /etc/init.d/mysql stop"
+   sudo /etc/init.d/mysql stop
+
+   echo "sudo cp -R -p /var/lib/mysql /home/databases"
+   sudo cp -R -p /var/lib/mysql /home/databases
+
+   echo "need to edit my.cnf file.  "
+   echo "change datadir from /var/lib/mysql to /home/databases/mysql"
+   # TODO: could use sed to to this
+
+   echo going to vi now
+   echo enter to continue
+   read x
+
+   sudo vi /etc/mysql/mysql.conf.d/mysqld.cnf 
+
+   echo "now need to edit AppArmour config file"
+   echo "Look for lines beginning with /var/lib/mysql. Change /var/lib/mysql to reflect the new path."
+
+   echo going to vi now
+   echo enter to continue
+   read x
+   sudo vi /etc/apparmor.d/usr.sbin.mysqld
+
+   echo "sudo /etc/init.d/apparmor reload"
+   sudo /etc/init.d/apparmor reload
+
+   echo "sudo /etc/init.d/mysql restart"
+   sudo /etc/init.d/mysql restart
+
+   # now, create a new database and a corresponding user for NCBI_Taxonomy usage
+   echo "going go create a new table in mysql and an NCBI_Taxonomy user.  Will be prompted for (mysql) root user password"
+   echo enter to continue
+   read x
+
+   sql_file=/tmp/sql_setup_$$
+
+cat > $sql_file << SQL_FILE
+
+CREATE DATABASE NCBI_Taxonomy;
+CREATE USER 'NCBI_Taxonomy'@'localhost' IDENTIFIED BY 'NCBI_Taxonomy';
+GRANT ALL PRIVILEGES ON NCBI_Taxonomy.* TO 'NCBI_Taxonomy'@'localhost';
+GRANT FILE on *.* to 'NCBI_Taxonomy'@'localhost';
+
+FLUSH PRIVILEGES;
+
+SQL_FILE
+
+   cat $sql_file | mysql -u root -p
+
+   rm $sql_file
+
+   
+else
+   echo "not going to do anything to mysql dbs..."
+fi
 
 
 # PHP
@@ -464,6 +539,8 @@ mv diamond bin
 ### sudo apt-get update
 ### sudo apt-get install -y nfs-common
 
+# just keep moving this else down to keep adding to what will get done
+else
 
 # install centrifuge
 echo install centrifuge
@@ -607,21 +684,67 @@ cd /home/apps/bin
 # khmer
 # htslib
 
-# TODO: Setup taxonomy db
-# mysql, populate database w/ taxonomy info...
-# download NCBI dbs, make indexes
-# setup cron job to update taxonomy db
+# setup cron jobs
+echo going to setup cron jobs
+echo first, will edit crontab via crontab -e
+echo after editing, simply quit and save to save helpful usage info in the crontab
+echo enter to continue
+read x
+crontab -e
+
+echo "now, going to add some additional lines to crontab"
+
+cron_file=/tmp/new_cronjobs_$$
+
+cat > $cron_file << CRON_FILE
+PATH=/home/mdstengl/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/apps/bin
+MAILTO=mark.stenglein@colostate.edu
+# on the 1st of every month at 2 AM update NCBI Taxonomy database and update mysql version of it
+0 2 1 * * /home/databases/NCBI_Taxonomy/fetch_NCBI_Taxonomy_db
+# on the 1st of every month at 4 AM update NR/NT databases and indexes
+0 4 1 * * /home/databases/nr_nt/fetch_nr_nt
+CRON_FILE
+
+crontab -l -u `whoami` | cat - $cron_file | crontab -u `whoami` -
+
+rm $cron_file
+
+# setup rsync.conf file
+echo "going to setup rsyncd.conf file so that automatic backups to stengleinlab201 can occur"
+echo "enter to continue"
+read x
+
+rsync_file=/tmp/rsyncd.conf.$$
+
+cat > $rsync_file << RSYNC_FILE
+[home]
+   path = /home/
+   comment = home
+   read only = yes
+   use chroot = no
+   # not same as
+   # auth users = mstenglein
+   hosts allow = stengleinlab201.cvmbs.colostate.edu
+
+RSYNC_FILE
+
+cat $rsync_file >> ~/rsyncd.conf
+
+rm $rsync_file
+
+echo "done setting up rsyncd.conf"
+echo "make sure to go to 201 server and setup backup from that end."
+echo enter to continue
+read x
+
+
+# database setups: see script setup_databases.sh
 
 # TODO: make this a snakemake or make
-
-# TODO: setup sequence databases
-# rsync from 101?
-# setup cronjob to update nr/nt
 
 # SysAdmin TODO:
 # MegaCli (RAID analysis)
 # setup RAID monitoring
-# setup rsync backup (???)
 # i.e. setup cron jobs
 
 fi
