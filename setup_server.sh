@@ -297,6 +297,9 @@ cd bowtie2-2.3.2
 cp bowtie2* /home/apps/bin
 cd /home/apps
 
+# install libtbb, necessary for bowtie2
+sudo apt-get install libtbb-dev -y
+
 # install cutadapt
 echo "installing cutadapt.  Note, won't install to /home/apps/bin"
 echo enter to continue
@@ -685,6 +688,7 @@ cd /home/apps/bin
 # htslib
 
 # setup cron jobs
+# TODO: could do this on 1 'master database server' and then rsync to others...
 echo going to setup cron jobs
 echo first, will edit crontab via crontab -e
 echo after editing, simply quit and save to save helpful usage info in the crontab
