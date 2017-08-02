@@ -25,7 +25,7 @@
 # Dependencies: these perl modules I've written:
 # to interface to the NCBI taxonomy data
 #
-#    gi_to_taxid.pm 
+#    acc_to_taxid.pm 
 #    taxid_to_description.pm
 #    taxid_to_kingdom.pm
 #
@@ -36,7 +36,7 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use gi_to_taxid;
+use acc_to_taxid;
 use taxid_to_description;
 use taxid_to_kingdom;
 
@@ -134,19 +134,19 @@ parse_nodes();
 # are any of the taxids upper level? (not species/leaf level)
 foreach my $t (keys %taxids_to_filter)
 {
-	warn "TAXID: $t\n";
-	if ($node_descendents{$t})
-	{
+   # warn "TAXID: $t\n";
+   if ($node_descendents{$t})
+   {
       my @descendents = @{$node_descendents{$t}};
       if (scalar @descendents)
       {
          $higher_level_taxids{$t} = 1;
       }
-	}
+   }
 }
 
 # initialize some maps
-my %gi_to_taxid_map = ();
+my %acc_to_taxid_map = ();
 my %taxid_to_desc_map = ();
 my %taxid_to_kingdom_map = ();
 
@@ -167,7 +167,7 @@ while ($fasta_file && $blast_file)
    {
       warn "parsing BLAST output file $blast_file\n";
       # read blast output file 
-      # Keep track of the GIs of the best hits for each query
+      # Keep track of the accs of the best hits for each query
       LINE: while (<$blast_fh>)
       {
          # TODO: keep track of best hit for each query
@@ -188,7 +188,7 @@ while ($fasta_file && $blast_file)
       
             my $query = $fields[0];
             # warn "processing hit for query: $query\n";
-            my $full_gi = $fields[1];
+            my $acc = $fields[1];
             my $bit_score = $fields[11];
       
             my $best_bitscore = $queries{$query}{best_bitscore};
@@ -197,16 +197,9 @@ while ($fasta_file && $blast_file)
                $queries{$query}{best_bitscore} = $bit_score;
                if ((!$best_bitscore) || ($bit_score > $best_bitscore))
                {
-                  $queries{$query}{best_gis} = [ ];
+                  $queries{$query}{best_accs} = [ ];
                }
-               if ($full_gi =~ /gi\|(\d+)|/)
-               {
-                  push @{ $queries{$query}{best_gis} }, $1;
-               }
-               else
-               {
-                  die ("unexpected GI format for GI: $full_gi\n");
-               }
+               push @{ $queries{$query}{best_accs} }, $acc;
             }
          }
          else
@@ -228,15 +221,15 @@ while ($fasta_file && $blast_file)
          {
             warn  "query #: $query_counter / $num_queries \n";
          }
-         my @gis = @{$queries{$query}{best_gis}};
-         my $number_hits = scalar (@gis);
+         my @accs = @{$queries{$query}{best_accs}};
+         my $number_hits = scalar (@accs);
 
-         foreach my $gi (@gis)
+         foreach my $acc (@accs)
          {
-            my $taxid = $gi_to_taxid_map{$gi};
+            my $taxid = $acc_to_taxid_map{$acc};
             if (!defined $taxid)
             {
-               my @taxids = gi_to_taxid::gi_to_taxid($gi);
+               my @taxids = acc_to_taxid::acc_to_taxid($acc);
                $taxid = $taxids[0];
             }
             if ((!$taxid)||(length($taxid) == 0))
@@ -246,7 +239,7 @@ while ($fasta_file && $blast_file)
 
             # "normalized" tally
             $taxid_tally{$taxid} += (1/$number_hits);
-            $gi_to_taxid_map{$gi} = $taxid;
+            $acc_to_taxid_map{$acc} = $taxid;
          }
       }
       
@@ -255,7 +248,7 @@ while ($fasta_file && $blast_file)
       my $record_counter = 0;
       
       warn "filtering FASTA file\n";
-      # now iterate through FASTA file, determine best GI(s) 
+      # now iterate through FASTA file, determine best acc(s) 
       # for each sequence and corresponding TAXIDs
       # and output if appropriate
       while (<$fasta_fh>)
@@ -288,18 +281,18 @@ while ($fasta_file && $blast_file)
       
             if ($queries{$read_id})
             {
-               my @best_hit_gis = @{$queries{$read_id}{best_gis}};
+               my @best_hit_accs = @{$queries{$read_id}{best_accs}};
                my @this_query_taxids = ();
-               BEST_HIT_GI: foreach my $gi (@best_hit_gis)
+               BEST_HIT_ACC: foreach my $acc (@best_hit_accs)
                {
-                  # determine TAXID of best blast hit GIs
-                  my $taxid = $gi_to_taxid_map{$gi};
+                  # determine TAXID of best blast hit accs
+                  my $taxid = $acc_to_taxid_map{$acc};
                   if (!$taxid)
                   {
-                     die ("error: should already have a taxid for GI: $gi\n");
-                     # my @taxids = gi_to_taxid::gi_to_taxid($gi);
+                     die ("error: should already have a taxid for acc: $acc\n");
+                     # my @taxids = acc_to_taxid::acc_to_taxid($acc);
                      # $taxid = $taxids[0];
-                     # $gi_to_taxid_map{$gi} = $taxid;
+                     # $acc_to_taxid_map{$acc} = $taxid;
                      # if we are only outputing certain TAXIDs, make sure
                      # this is one of them
                   }
@@ -316,12 +309,12 @@ while ($fasta_file && $blast_file)
                   # First, Are we outputing any higher-level taxids?
                   if (scalar keys %higher_level_taxids)
                   {
-							my $parent_taxid = $taxid;
+                     my $parent_taxid = $taxid;
                      # is this taxid a descendent of a higher level taxid to be output?
                      # if so, aggregate to that 
                      while ($parent_taxid = $node_parent{$parent_taxid})
                      {
-								warn "PARENT: $parent_taxid\n";
+                        warn "PARENT: $parent_taxid\n";
                         if ($higher_level_taxids{$parent_taxid})
                         {
                            # this is a descendent 
@@ -338,7 +331,7 @@ while ($fasta_file && $blast_file)
                   # check to see if any taxids to be output.
                   if (!scalar @this_query_taxids)
                   {
-                     next BEST_HIT_GI;
+                     next BEST_HIT_ACC;
                   }
       
                   # if we are only outputing TAXIDS with a certain number
@@ -346,7 +339,7 @@ while ($fasta_file && $blast_file)
                   if ($min_tally &&  ($taxid_tally{$taxid} <= $min_tally))
                   {
                      # warn "for read $read_id, count for taxid $taxid not above cutoff\n";
-                     next BEST_HIT_GI;
+                     next BEST_HIT_ACC;
                   }
       
                   foreach my $this_query_taxid (@this_query_taxids)
@@ -357,20 +350,21 @@ while ($fasta_file && $blast_file)
                         {
                            # we've already accounted for this TAXID in this
                            # hit.  Carry on.
-                           next BEST_HIT_GI;
+                           next BEST_HIT_ACC;
                         }
                      }
 
                      # determine kingdom (according to NCBI taxonomy db)
                      my @kingdoms = taxid_to_kingdom::taxid_to_kingdom($this_query_taxid);
                      my $kingdom = $kingdoms[0];
+							warn "TAXID: $this_query_taxid\tKINGDOM: $kingdom\n";
                      $taxid_to_kingdom_map{$this_query_taxid} = $kingdom;
       
                      # if only want virus hits, ignore non-virus hits
                      if ($virus_only && ($kingdom ne "V"))
                      {
                         # warn "ignoring non virus taxid $taxid\n";
-                        next BEST_HIT_GI;
+                        next BEST_HIT_ACC;
                      }
 
       

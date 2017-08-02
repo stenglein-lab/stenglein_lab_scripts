@@ -55,7 +55,7 @@ sub _gi_to_taxid
       $qs = join (", ", @qs_array);
    }
    my $sql_string = "SELECT gi, taxid FROM gi_taxid_map where gi in ( $qs )";
-   # warn "$sql_string\n";
+   warn "$sql_string\n";
    my $sth = $dbh->prepare( $sql_string );
    $sth->execute(@gis);
    # warn "GIS: @gis\n";

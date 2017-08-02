@@ -23,7 +23,7 @@
 #
 #    taxid_to_description.pm
 #    taxid_to_kingdom.pm
-#    gi_to_taxid;
+#    acc_to_taxid;
 #
 #   Mark Stenglein June 9, 2011
 #   Updated: Dec 14, 2015
@@ -31,10 +31,12 @@
 
 use strict;
 use Getopt::Long;
+use feature "current_sub";
 use taxid_to_description;
 use taxid_to_kingdom;
 use fetch_gi_description;
-use gi_to_taxid;
+# use gi_to_taxid;
+use acc_to_taxid;
 use DBI;
 
 # TODO: make this setable by environmental variable or command line option
@@ -346,7 +348,7 @@ foreach my $aln_file (@aln_files)
 
          my $query = $fields[0];
          push @queries_array , $query;
-         my $full_gi = $fields[1];
+         my $gi = $fields[1];
          my $evalue = $fields[10];
          my $bit_score = $fields[11];
 
@@ -396,7 +398,7 @@ foreach my $aln_file (@aln_files)
    }
 
    # iterate through best hits and determine GI->TaxID mapping
-   warn "mapping GIs->TaxID\n";
+   warn "mapping sequence accessions to TaxIDs\n";
    foreach my $query (keys %queries)
    {
       my @hits = @{$queries{$query}{best_hits}};
@@ -404,17 +406,8 @@ foreach my $aln_file (@aln_files)
       foreach my $hit (@hits)
       {
          @fields = split "\t", $hit;
-         my $full_gi = $fields[1];
-         if ($full_gi =~ /^gi\|(\d+)/)
-         {
-            my $gi = $1;
-            $observed_gi_tally{$gi} += 1;
-         }
-         else
-         {
-            warn ("unexpected GI format for GI: $full_gi\n");
-            # die ("unexpected GI format for GI: $full_gi\n");
-         }
+         my $gi = $fields[1];
+         $observed_gi_tally{$gi} += 1;
       }
    }
 
@@ -432,13 +425,13 @@ foreach my $aln_file (@aln_files)
       }
       warn "fetching $i to $last_i\n";
       my @gis_to_fetch = @observed_gis[$i..$last_i];
-      my @taxids = gi_to_taxid::gi_to_taxid(@gis_to_fetch);
+      my @taxids = acc_to_taxid::acc_to_taxid(@gis_to_fetch);
       for (my $j = 0; $j < (scalar @gis_to_fetch); $j++)
       {
          my $gi = $gis_to_fetch[$j];
          my $taxid = $taxids[$j];
          $gi_taxid_map{$gi} = $taxid;
-         # print "$gi -> $taxid\n";
+         warn "$gi -> $taxid\n";
       }
    }
 
@@ -454,28 +447,19 @@ foreach my $aln_file (@aln_files)
       foreach my $hit (@hits)
       {
          @fields = split "\t", $hit;
-         my $full_gi = $fields[1];
-         if ($full_gi =~ /^gi\|(\d+)/)
+         my $gi = $fields[1];
+         my $taxid = $gi_taxid_map{$gi};
+         if (!defined $taxid)
          {
-            my $gi = $1;
-            my $taxid = $gi_taxid_map{$gi};
-            if (!defined $taxid)
-            {
-               warn "TAXID undefined for GI: $gi\n";
-            }
-
-            # keep track of which taxids this query hits -> will use to find LCA
-            $hit_taxids{$taxid} += 1;
-
-            if ($output_descriptions)
-            {
-               $taxid_gi_tally{$taxid}{$gi} += 1;
-            }
+            warn "__LINE_ TAXID undefined for GI: $gi\n";
          }
-         else
+
+         # keep track of which taxids this query hits -> will use to find LCA
+         $hit_taxids{$taxid} += 1;
+
+         if ($output_descriptions)
          {
-            warn ("unexpected GI format for GI: $full_gi\n");
-            # die ("unexpected GI format for GI: $full_gi\n");
+            $taxid_gi_tally{$taxid}{$gi} += 1;
          }
       }
 
@@ -515,38 +499,34 @@ foreach my $aln_file (@aln_files)
             {
                die "error: unexpected format for blast hit: line: $hit\n";
             }
-            my $full_gi = $fields[1];
+            my $gi = $fields[1];
             my $unformatted_evalue = $fields[10];
             my $evalue = sprintf "%0.1e", $unformatted_evalue;
             my $pct_id = $fields[2];
-            if ($full_gi =~ /gi\|(\d+)|/)
+            my $taxid = $gi_taxid_map{$gi};
+            if (!$taxid)
             {
-               my $gi = $1;
-               my $taxid = $gi_taxid_map{$gi};
-               if (!$taxid)
-               {
-                  warn "TAXID undefined for GI: $gi\n";
-               }
-               # "normalized" tally
-               $taxid_tally{$taxid}{tally} += ($query_weights{$query}/$number_hits);
-               if ($output_descriptions)
-               {
-                  $taxid_gi_tally{$taxid}{$gi} += ($query_weights{$query}/$number_hits);
-               }
-               push @{$taxid_tally{$taxid}{evalues}}, $evalue;
-               push @{$taxid_tally{$taxid}{pct_ids}}, $pct_id;
+               warn "__LINE__ 1 TAXID undefined for GI: $gi\n";
+            }
+            # "normalized" tally
+            $taxid_tally{$taxid}{tally} += ($query_weights{$query}/$number_hits);
+            if ($output_descriptions)
+            {
+               $taxid_gi_tally{$taxid}{$gi} += ($query_weights{$query}/$number_hits);
+            }
+            push @{$taxid_tally{$taxid}{evalues}}, $evalue;
+            push @{$taxid_tally{$taxid}{pct_ids}}, $pct_id;
 
-               # propagate tally up tree to root 
-               if ($tree_output)
+            # propagate tally up tree to root 
+            if ($tree_output)
+            {
+               my $parent_taxid = $taxid;
+               while ($parent_taxid = $node_parent{$parent_taxid})
                {
-                  my $parent_taxid = $taxid;
-                  while ($parent_taxid = $node_parent{$parent_taxid})
-                  {
-                     $taxid_tally{$parent_taxid}{tally} += ($query_weights{$query} / $number_hits);
-                     push @{$taxid_tally{$parent_taxid}{evalues}}, $evalue;
-                     push @{$taxid_tally{$parent_taxid}{pct_ids}}, $pct_id;
-                     if ($parent_taxid == 1) { last; }  # at the root
-                  }
+                  $taxid_tally{$parent_taxid}{tally} += ($query_weights{$query} / $number_hits);
+                  push @{$taxid_tally{$parent_taxid}{evalues}}, $evalue;
+                  push @{$taxid_tally{$parent_taxid}{pct_ids}}, $pct_id;
+                  if ($parent_taxid == 1) { last; }  # at the root
                }
             }
          }
@@ -625,7 +605,7 @@ foreach my $aln_file (@aln_files)
   elsif (!$tree_output)
   { 
    if ($annotated_blast_output) 
-	{  
+   {  
 	   # die "unsupported option for gsnap output \n"; 
       foreach my $query (@queries_array)
       {
@@ -638,45 +618,37 @@ foreach my $aln_file (@aln_files)
             {
                die "error: unexpected format for blast hit: line: $hit\n";
             }
-            my $full_gi = $fields[1];
+            my $gi = $fields[1];
             my $unformatted_evalue = $fields[10];
             my $evalue = sprintf "%0.1e", $unformatted_evalue;
-            if ($full_gi =~ /gi\|(\d+)|/)
+            my $taxid = undef;
+            my @taxids = acc_to_taxid::acc_to_taxid($gi);
+            $taxid = $taxids[0];
+            # check to see if we are only outputting a subset of taxids, and if so, is this
+            # one of the ones we should output?
+            if ( $including_taxids and not $included_taxids{$taxid} )
             {
-               my $gi = $1;
-               my $taxid = undef;
-               my @taxids = gi_to_taxid::gi_to_taxid($gi);
-               $taxid = $taxids[0];
-               # check to see if we are only outputting a subset of taxids, and if so, is this
-               # one of the ones we should output?
-               if ( $including_taxids and not $included_taxids{$taxid} )
-               {
-                  ## warn "taxid: $taxid is not in the included list\n";
-                  next ;
-               }
-               if ( $excluding_taxids and $excluded_taxids{$taxid} )
-               {
-                  ## warn "taxid: $taxid is excluded\n";
-                  next ;
-               }
-               my @scientific_names = taxid_to_description::taxid_to_scientific_name($taxid);
-               my $scientific_name = $scientific_names[0];
-               my @common_names = taxid_to_description::taxid_to_common_name($taxid);
-               my $common_name = $common_names[0];
-               my @kingdoms = taxid_to_kingdom::taxid_to_kingdom($taxid);
-               my $kingdom = $kingdoms[0];
-               my $new_gi = $full_gi.":".$scientific_name.":".$common_name.":".$kingdom;
-               $fields[1] = $new_gi;
-               print join "\t" ,  @fields;
-               print "\n";
+               ## warn "taxid: $taxid is not in the included list\n";
+               next ;
             }
-            else
+            if ( $excluding_taxids and $excluded_taxids{$taxid} )
             {
-               die ("unexpected GI format for GI: $full_gi\n");
+               ## warn "taxid: $taxid is excluded\n";
+               next ;
             }
+            my @scientific_names = taxid_to_description::taxid_to_scientific_name($taxid);
+            my $scientific_name = $scientific_names[0];
+            my @common_names = taxid_to_description::taxid_to_common_name($taxid);
+            my $common_name = $common_names[0];
+            my @kingdoms = taxid_to_kingdom::taxid_to_kingdom($taxid);
+            my $kingdom = $kingdoms[0];
+            my $new_gi = $gi.":".$scientific_name.":".$common_name.":".$kingdom;
+            $fields[1] = $new_gi;
+            print join "\t" ,  @fields;
+            print "\n";
          }
       }
-	}
+   }
    else
    {
       # finally, output tallys
