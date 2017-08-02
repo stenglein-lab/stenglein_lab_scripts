@@ -19,6 +19,9 @@ then
 
 echo "bla bla bla" > /dev/null
 
+# just keep moving this else down to keep adding to what will get done
+else
+
 
 
 # update packages
@@ -232,9 +235,25 @@ PATH="${PATH}:/home/apps/bin"
 END_BASHRC
 )
 
-echo "Adding the following lines to .bashrc:"
+echo "Adding the following lines to ~/.bashrc:"
 echo "$bashrc" 
 echo "$bashrc" >> ~/.bashrc
+
+
+# Setup .vimrc for my user
+# vim defaults
+
+vimrc=$(cat <<'END_VIMRC'
+set ai
+set sw=3
+set ic
+set tabstop=3
+syntax on
+END_VIMRC
+)
+echo "Adding the following lines to ~/.vimrc:"
+echo "$vimrc" 
+echo "$vimrc" >> ~/.vimrc
 
 # setup ~/bin
 # do this manually  before running this script.
@@ -542,9 +561,6 @@ mv diamond bin
 ### sudo apt-get update
 ### sudo apt-get install -y nfs-common
 
-# just keep moving this else down to keep adding to what will get done
-else
-
 # install centrifuge
 echo install centrifuge
 cd /home/apps
@@ -741,6 +757,15 @@ echo "make sure to go to 201 server and setup backup from that end."
 echo enter to continue
 read x
 
+
+# setup PERL modules
+# need DBI perl module for some of the tax pipeline scripts
+echo "going to use cpan to install perl DBI module"
+echo "enter to continue"
+read x
+cpan DBI
+# install DBD-Mysql module...
+sudo apt-get install libdbd-mysql-perl
 
 # database setups: see script setup_databases.sh
 
