@@ -7,7 +7,7 @@ cat << EOF
  
  This script downloads a dataset or multiple datasets from the NCBI Short Read Archive (SRA)
 
- The datasets are downloaded as .sra format files.
+ The datasets are downloaded as .fastq format files.
 
  This script accepts SRA Run accessions (SRRXXXXXX) as arguments and can accept a file with
  multiple accessions, one per line.
@@ -17,11 +17,9 @@ cat << EOF
 
  Mark Stenglein June 3, 2016
 
-
  Dependencies: 
   (1) internet access
   (2) wget or curl
-
 
  Usage:
 
@@ -31,8 +29,9 @@ cat << EOF
 
   -f filename  specify a filename with multiple SRA run accessions, one per line
 
-  SRR_acc_N    SRA run accessions of dataset to download, of form SRRXXXXXXX
+  -r           rename downloaded files from XXX_1.fastq and XXX_2.fastq to XXX_R1.fastq XXX_R2.fastq
 
+  SRR_acc_N    SRA run accessions of dataset to download, of form SRRXXXXXXX
 
 
  Usage examples:
@@ -40,9 +39,6 @@ cat << EOF
   download_sra_data SRR1539827 SRR1539826 SRR1539825
 
   download_sra_data -f file_with_list_of_SRR_accessions.txt
-
-
- See also: script sra_to_fastq
 
 
 EOF
@@ -59,9 +55,10 @@ fi
 # initialize some variables
 accession_filename=""
 accessions=()
+rename_files=0
 
 # parse command line options
-while getopts “hf:” OPTION
+while getopts “hrf:” OPTION
 do
      case $OPTION in
          h)
@@ -71,6 +68,10 @@ do
          f)
              # download a bunch of SRA datasets, listed in a file
              accession_filename=$OPTARG
+             ;;
+         r)
+             # rename files
+             rename_files=1
              ;;
          ?)
              usage
@@ -96,78 +97,39 @@ fi
 # other accessions = rest of arguments
 accessions+=("$@")
 
-
 for sra_acc in "${accessions[@]}"
 do
 	# does this look like a legit SRA run accession?
-	if [[ $sra_acc  =~ "SRR"[0-9]+ ]] 
+	if [[ $sra_acc  =~ [DES]"RR"[0-9]+ ]] 
 	then
-		# construct URL
 
-      # Typical SRA URL: anonftp@ftp.ncbi.nlm.nih.gov:/sra/sra-instant/reads/ByRun/sra/SRR/SRR304/SRR304976/SRR304976.sra
-      base_url="ftp.ncbi.nlm.nih.gov:/sra/sra-instant/reads/ByRun/sra/"
-
-	   sra_acc_3=${sra_acc:0:3}
-	   sra_acc_6=${sra_acc:0:6}
-	   full_url="${base_url}${sra_acc_3}/${sra_acc_6}/${sra_acc}/${sra_acc}.sra"
-
-      # check to see if curl exists
-      if [ -x "$(command -v curl)" ] 
+      # check to see if fastq-dump exists
+      if [ -x "$(command -v fastq-dump)" ] 
 		then
-
-			# we'll use curl
-         fetch_cmd="curl -O"
-
-         # if no curl, check for wget
-
-      elif [ -x "$(command -v wget)" ] 
-		then
-
-		   # we'll use wget
-         fetch_cmd=wget
-
+         # : does nothing
+			:
 		else 
-
-			# neither curl nor wget
-         echo 'Error: neither curl nor wget are installed.  Exiting.' >&2
+         echo 'Error: fastq-dump not found.  Exiting.' >&2
 			exit
-
       fi
 
 		# actually get the data using wget or curl
-	   echo "$fetch_cmd $full_url"
-	   $fetch_cmd $full_url
-
+	   echo "fastq-dump -I --split-files $sra_acc"
+	   fastq-dump -I --split-files $sra_acc
+		if [[ "$rename_files" -eq "1" ]]
+		then
+		   mv ${sra_acc}_1.fastq ${sra_acc}_R1.fastq 
+			if [ -e ${sra_acc}_2.fastq ]
+			then
+		      mv ${sra_acc}_2.fastq ${sra_acc}_R2.fastq 
+			fi
+		fi
 	else
-
 		# invalid run accession format
-	   echo "warning: $sra_acc does not appear to be an SRA run accession (SRRXXXXXXX), skipping" 
-
+	   echo "warning: $sra_acc does not appear to be an SRA run accession ([SDE]RRXXXXXX), skipping\n" 
 	fi
+
 done 
 
 
 
-# From: http://www.ncbi.nlm.nih.gov/books/NBK158899/
-# 
-# Determining the location of SRA data files for automated or scripted downloads.
-# 
-# Beginning with a list of desired SRA data sets (e.g., a list of SRA Run accessions, “SRRs”), the exact download location for that data file can be determined as follows:
-# 
-# wget/FTP root: ftp://ftp-trace.ncbi.nih.gov
-# 
-# ascp root: vog.hin.mln.ibcn.ptf@ptfnona:
-# 
-# Remainder of path:
-# 
-# /sra/sra-instant/reads/ByRun/sra/{SRR|ERR|DRR}/<first 6 characters of accession>/<accession>/<accession>.sra
-# 
-# Where
-# 
-# {SRR|ERR|DRR} should be either ‘SRR’, ‘ERR’, or ‘DRR’ and should match the prefix of the target .sra file
-# 
-# Examples:
-# 
-# Downloading SRR304976 by wget or FTP:
-# 
-# wget ftp://ftp-trace.ncbi.nih.gov/sra/sra-instant/reads/ByRun/sra/SRR/SRR304/SRR304976/SRR304976.sra

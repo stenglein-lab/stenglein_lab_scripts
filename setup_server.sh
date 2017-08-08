@@ -767,6 +767,46 @@ cpan DBI
 # install DBD-Mysql module...
 sudo apt-get install libdbd-mysql-perl
 
+# setup pip3, to install snakemake,
+sudo apt-get update
+sudo apt-get -y install python3-pip
+
+# install snakemake via pip
+sudo pip3 install snakemake
+
+# install hmmer, necessary for RepeatMasker
+echo install hmmer
+cd /home/apps
+wget http://eddylab.org/software/hmmer3/3.1b2/hmmer-3.1b2-linux-intel-x86_64.tar.gz
+tar xvf hmmer-3.1b2-linux-intel-x86_64.tar.gz 
+cd hmmer-3.1b2-linux-intel-x86_64/
+cp binaries/* /home/apps/bin
+cd /home/apps
+
+# install TRF
+echo "need to install TRF (tandem repeat finder) as a RepeatMasker dependency"
+echo "download the trf executable from here: http://tandem.bu.edu/trf/trf.download.html"
+echo "and install it into /home/apps/bin"
+echo "and make sure it has executable permissions"
+echo "enter when that task is complete"
+read x
+
+# install RepeatMasker
+echo install RepeatMasker
+cd /home/apps
+wget http://www.repeatmasker.org/RepeatMasker-open-4-0-7.tar.gz
+tar xvf RepeatMasker-open-4-0-7.tar.gz
+cd RepeatMasker/
+echo "going to run the interactive RepeatMasker configure script now..."
+echo enter to continue
+read x
+perl ./configure 
+
+# install perl module needed by RepeatMasker :<
+echo "install perl module needed by RepeatMasker"
+cpan Text::Soundex
+
+
 # database setups: see script setup_databases.sh
 
 # TODO: make this a snakemake or make
