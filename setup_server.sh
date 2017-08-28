@@ -474,6 +474,9 @@ git clone https://github.com/weizhongli/cdhit.git
 cd cdhit
 make
 cp cd-hit* /home/apps/bin
+cd cd-hit-auxtools
+make
+cp cd-hit-dup cd-hit-lap read-linker /home/apps/bin
 cd /home/apps
 
 # install gmap
@@ -805,6 +808,22 @@ perl ./configure
 # install perl module needed by RepeatMasker :<
 echo "install perl module needed by RepeatMasker"
 cpan Text::Soundex
+
+# install bcftools
+echo install bcftools
+cd /home/apps
+wget https://github.com/samtools/bcftools/releases/download/1.5/bcftools-1.5.tar.bz2
+bzip2 -d bcftools-1.5.tar.bz2
+tar xvf bcftools-1.5.tar
+cd bcftools-1.5
+./configure --prefix=/home/apps
+make
+make install
+cd /home/apps
+
+# install tabix, for bgzip, etc.
+sudo apt-get update
+sudo apt -y install tabix
 
 
 # database setups: see script setup_databases.sh
