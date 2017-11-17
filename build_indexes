@@ -10,11 +10,12 @@ echo "*************************************************"
 
 
 # download nr & nt dbs in fasta format 
-# wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
+rm -f nt.gz nr.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
 wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
 gunzip nt.gz 
 mv nt nt.fasta
-# gunzip nr.gz 
+gunzip nr.gz 
 mv nr nr.fasta
 
 ### old way of creating nr/nt fasta files: from the blast dbs
