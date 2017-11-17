@@ -7,13 +7,19 @@
 cd /home/databases/NCBI_Taxonomy
 
 ftp_url='ftp://ftp.ncbi.nih.gov/pub/taxonomy/'
-file_list=( gi_taxid.readme   gi_taxid_nucl.dmp.gz gi_taxid_nucl_diff.dmp.gz gi_taxid_prot.dmp.gz gi_taxid_prot_diff.dmp.gz taxcat.tar.gz taxcat.tar.gz.md5 taxcat_readme.txt taxdump.tar.gz taxdump.tar.gz.md5 taxdump_readme.txt)
-gzip_file_list=( gi_taxid_nucl.dmp.gz gi_taxid_nucl_diff.dmp.gz gi_taxid_prot.dmp.gz gi_taxid_prot_diff.dmp.gz taxcat.tar.gz taxdump.tar.gz )
-ungzip_file_list=( gi_taxid_nucl.dmp gi_taxid_nucl_diff.dmp gi_taxid_prot.dmp gi_taxid_prot_diff.dmp taxcat.tar taxdump.tar )
+file_list=( gi_taxid.readme  gi_taxid_nucl.dmp.gz gi_taxid_nucl_diff.dmp.gz gi_taxid_prot.dmp.gz gi_taxid_prot_diff.dmp.gz taxcat.tar.gz taxcat.tar.gz.md5 taxcat_readme.txt taxdump.tar.gz taxdump.tar.gz.md5 taxdump_readme.txt accession2taxid/nucl_gb.accession2taxid.gz accession2taxid/prot.accession2taxid.gz)
+gzip_file_list=( gi_taxid_nucl.dmp.gz gi_taxid_nucl_diff.dmp.gz gi_taxid_prot.dmp.gz gi_taxid_prot_diff.dmp.gz taxcat.tar.gz taxdump.tar.gz nucl_gb.accession2taxid.gz prot.accession2taxid.gz)
+ungzip_file_list=( gi_taxid_nucl.dmp gi_taxid_nucl_diff.dmp gi_taxid_prot.dmp gi_taxid_prot_diff.dmp taxcat.tar taxdump.tar nucl_gb.accession2taxid prot.accession2taxid)
 tar_file_list=( taxcat.tar taxdump.tar )
+
+# wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz
+# gunzip nucl_gb.accession2taxid.gz
+# wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/prot.accession2taxid.gz
+# gunzip prot.accession2taxid.gz
 
 for f in ${file_list[@]}
 do
+	rm -f $f
    echo downloading ${ftp_url}${f}
    wget ${ftp_url}${f}
 done
@@ -40,9 +46,13 @@ do
 done
 
 # create concatenated GI/TAXID map file w/ nt and prot GIs
-concat_script=./concat_and_sort_gi_dmp_files
-$concat_script gi_taxid_nucl.dmp gi_taxid_prot.dmp > gi_taxid.dmp
-
+# concat_script=./concat_and_sort_gi_dmp_files
+# $concat_script gi_taxid_nucl.dmp gi_taxid_prot.dmp > gi_taxid.dmp
 
 # now update MYSQL db
-./create_gi_taxid_mysql_table
+# ./create_gi_taxid_mysql_table
+echo "loading acc->taxid info into mysql database"
+date
+./create_gi_taxid_mysql_table_acc
+echo "done loading acc->taxid info into mysql database"
+date
