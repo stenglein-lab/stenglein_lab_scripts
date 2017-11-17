@@ -1,0 +1,206 @@
+#!/usr/bin/perl
+
+# This script takes in a bunch of taxid tally files and makes a large matrix
+# of the number of hits for each taxid for each file (each barcode)
+#
+# Mark Stenglein, August 23, 2011
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+   Reads multiple tally files and outputs a matrix with rows as samples (files) and columns of TAXIDS 
+
+   $0 [-t taxids_file] [-c tally_cutoff] [-v] [-p]  tally_files...
+   
+   -t taxids_file:           limit output to the taxids listed in this file
+   -c tally_cutoff:          only output tally if above this cutoff
+   -v:                       only include virus taxids in matrix (default = off)
+   -p:                       exclude phage taxids (default = off)
+
+USAGE
+
+if (scalar @ARGV == 0) {print $usage and exit; }
+
+my $print_usage = 0;
+my $tally_cutoff = 0;
+my $taxid_fn = undef;
+my $virus_only = 0;
+my $no_phage = 0;
+GetOptions ("h" => \$print_usage, 
+            "c=s" => \$tally_cutoff, 
+            "t=s" => \$taxid_fn, 
+            "v" => \$virus_only, 
+            "p" => \$no_phage);
+
+if ($print_usage) { print $usage; exit }
+
+my $taxid_fh = undef;
+if ($taxid_fn)
+{
+   open ($taxid_fh, "<", $taxid_fn) or print $usage and die;
+}
+
+my @barcodes = ();
+my @taxids = ();
+my @unsorted_taxids = ();
+my $taxid_subset = 0;
+my %taxid_name_map = ();
+my %taxid_common_name_map = ();
+
+if ($taxid_fh)
+{
+   $taxid_subset = 1;
+   while (<$taxid_fh>)
+   {
+      chomp;
+      my @rest;
+      my $taxid;
+      my $name;
+      ($taxid, $name, @rest) = split "\t";
+      push @taxids, $taxid;
+      $taxid_name_map{$taxid} = $name;
+   }
+}
+
+my %matrix = ();
+my %observed_barcodes = ();
+
+while (my $tally_fn = shift)
+{
+   # look for barcode in filename... assume it's there
+   my $barcode = undef;
+   $tally_fn =~ /_([ACGT]{7})_/;
+   $barcode = $1;
+
+   if (!$barcode)
+   {
+      $barcode = $tally_fn;
+   }
+
+   if (!$observed_barcodes{$barcode})
+   {
+      $observed_barcodes{$barcode} = 1;
+      push @barcodes, $barcode;
+   }
+
+   my @rest = ();
+   open (my $tally_fh, "<", $tally_fn) or print $usage and die;
+   TALLY_LINE: while (<$tally_fh>)
+   {
+      chomp;
+      # my ($taxid, $name, $common_name, $kingdom, $tally, @rest) = split "\t";
+      my ($rank, $taxid, $parent_taxid, $name, $common_name, $kingdom, $tally, @rest) = split "\t";
+      if (length $taxid == 0)
+      {
+         $taxid = "X";
+         $name = "Unknown Taxid";
+         $kingdom = "X";
+      }
+
+      if (($virus_only) && ($kingdom ne "V"))
+      {
+         next TALLY_LINE;
+      }
+
+      if (($no_phage) && ($name =~ /phage/i))
+      {
+         next TALLY_LINE;
+      }
+
+      if (!$taxid_name_map{$taxid})
+      {
+         $taxid_name_map{$taxid} = $name;
+         $taxid_common_name_map{$taxid} = $common_name;
+         if (!$taxid_subset)
+         {
+            push @taxids, $taxid;
+         }
+      }
+      $matrix{$barcode}{$taxid} = $tally;
+   }
+   close ($tally_fh);
+}
+
+# check to see if any of the barcodes have more than the specified
+# cutoff value for a particular taxid
+my @passing_taxids = ();
+TAXID_CHECK: foreach my $taxid (@taxids)
+{
+   foreach my $barcode (@barcodes)
+   {
+      if (($matrix{$barcode}{$taxid}) && ($matrix{$barcode}{$taxid} > $tally_cutoff))
+      {
+          # OK - can go onto next taxid
+          push (@passing_taxids, $taxid);
+			 if ($taxid == 89490)
+			 {
+	          warn "taxid: $taxid did pass\nbarcode: $barcode\tcount: $matrix{$barcode}{$taxid}\n";
+			 }
+          next TAXID_CHECK;
+      }
+   }
+}
+
+# now sort taxids by average tally
+
+my $barcode_count = scalar (@barcodes);
+my %avg_tallies = ();
+foreach my $taxid (@passing_taxids)
+{
+   my $sum = 0;
+   foreach my $barcode (@barcodes)
+   {
+      if ($matrix{$barcode}{$taxid})
+      {
+         $sum += $matrix{$barcode}{$taxid};
+      }
+   }
+   $avg_tallies{$taxid} = $sum / $barcode_count
+}
+
+my @sorted_taxids = sort {$avg_tallies{$b} <=> $avg_tallies{$a}} keys %avg_tallies;
+@taxids = @sorted_taxids;
+
+
+# output matrix
+
+# first line
+foreach my $taxid (@sorted_taxids)
+{
+   # print "\t$taxid";
+}
+print "\n";
+
+# second line
+foreach my $taxid (@sorted_taxids)
+{
+   print "\t$taxid_name_map{$taxid}";
+}
+print "\n";
+
+# third line
+foreach my $taxid (@sorted_taxids)
+{
+   # print "\t$taxid_common_name_map{$taxid}";
+}
+print "\n";
+
+# one line for each barcode
+foreach my $barcode (@barcodes)
+{
+   print "$barcode";
+   foreach my $taxid (@sorted_taxids)
+   {
+      if (($matrix{$barcode}{$taxid}) && ($matrix{$barcode}{$taxid} > $tally_cutoff))
+      {
+         printf "\t%0.1f", $matrix{$barcode}{$taxid};
+      }
+      else
+      {
+         print "\t0";
+      }
+   }
+   print "\n";
+}

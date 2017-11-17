@@ -46,6 +46,23 @@ sudo ufw enable
 echo "check UFW status: should be active w/ OpenSSH connections enabled"
 sudo ufw status
 
+# install msmtp for emailing...
+sudo apt install -y msmtp msmtp-mta
+
+msmtprc=$(cat <<'END_MSMTPRC'
+account default 
+host smtp.colostate.edu
+port 25
+from `hostname -a`@colostate.edu
+auth off
+syslog LOG_MAIL
+END_MSMTPRC
+)
+
+echo "Adding the following lines to /etc/msmtprc"
+echo "$msmtprc" 
+sudo echo "$msmtprc" > /etc/msmtprc 
+
 
 # install HDF5 libs, for utils like h5dump
 sudo apt-get update
@@ -824,6 +841,31 @@ cd /home/apps
 # install tabix, for bgzip, etc.
 sudo apt-get update
 sudo apt -y install tabix
+
+# install prokka
+# see: https://github.com/tseemann/prokka#installation
+sudo apt-get update
+sudo apt-get -y install libdatetime-perl libxml-simple-perl libdigest-md5-perl bioperl
+# NOTE: bioperl installs, via bioperl-run dependency , a bunch of 
+#   out of date versions of apps, like samtools...!!
+# To remove them, we'll remove the bioperl-run package:
+sudo apt-get purge bioperl-run
+sudo apt-get autoremove
+# continue w/ prokka install
+cd /home/apps
+git clone https://github.com/tseemann/prokka.git
+cd prokka
+bin/prokka --setupdb
+cd /home/apps
+
+# setup barrnap
+# basic rRNA predictor
+echo installing barrnap
+cd /home/apps
+wget https://github.com/tseemann/barrnap/archive/0.8.tar.gz
+tar xvf 0.8.tar.gz
+cd /home/apps
+
 
 
 # database setups: see script setup_databases.sh
