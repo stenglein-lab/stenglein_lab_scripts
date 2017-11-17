@@ -1,0 +1,258 @@
+#!/usr/bin/perl
+
+my $usage = <<USAGE;
+
+   This script changes fasta headers from a standard NCBI format like this:
+  
+   >ACX83588.1 putative serine protease [Astrovirus MLB2]
+   
+   to a organism_accession format like this:
+  
+   Astrovirus_MLB2_261414359
+  
+   This is useful for, e.g., creating phylogenies
+  
+   It uses the NCBI E-Utils system
+  
+   Dependencies:
+   fetch_acc_esummary 
+  
+
+   Mark Stenglein
+   10.12.2015, 9.12.2017
+
+   Usage: $0 <fasta_input>
+
+   Reads fasta format input from stdin
+   Writes fasta w/ changed header lines to stdout
+
+USAGE
+
+use strict;
+use Time::HiRes;
+
+# if running w/out args
+if (-t STDIN && @ARGV == 0) { print ($usage) and exit; }
+
+my %taxid_name_map = ();
+
+# read input fasta file
+while (<>)
+{
+	chomp;
+	if (/^>/)
+	{
+      my $acc = undef;
+      if (/^>gi\|(\d*)\|/)
+      {
+			die "error: this tool doesn't support the old NCBI GI system\n";
+      }
+		elsif (/^>(\S+)/)
+      {
+         $acc = $1;
+      }
+
+      my $prot = undef;
+      my $orgn = undef;
+      my $common_name = undef;
+   
+      # Although this is called fetch_acc_protein_esummary, it will work for protein or nucleotide accs
+      my $efetch_result = fetch_acc_protein_esummary($acc);
+		# warn "first efetch result\n";
+		# warn $efetch_result;
+		# next;
+      open (my $efetch_fh, "<", \$efetch_result) or die ("error opening efetch result: $!\n");
+      while (<$efetch_fh>)
+      {
+			# <Item Name="TaxId" Type="Integer">1244565</Item>
+         if (/<Item Name="TaxId" Type="Integer">(\d+)/)
+         {
+				my $taxid = $1;
+				if (!$taxid_name_map{$taxid})
+				{
+               my $efetch_tax_result = fetch_acc_taxonomy_esummary($taxid);
+               open (my $efetch_tax_fh, "<", \$efetch_tax_result) or die ("error opening efetch result: $!\n");
+               while (<$efetch_tax_fh>)
+               {
+					   # <Item Name="ScientificName" Type="String">Bos taurus</Item>
+                  if (/<Item Name="ScientificName" Type="String">(.*)</)
+						{
+						   $orgn = $1;
+							# replace spaces w/ underscore in nsmae
+							$orgn =~ s/ /_/g;
+							$orgn =~ s/\'//g;
+							$orgn =~ s/\//_/g;
+						}
+                  if (/<Item Name="CommonName" Type="String">(.*)</)
+						{
+						   $common_name = $1;
+							# replace spaces w/ underscore in nsmae
+							$common_name =~ s/ /_/g;
+							$common_name =~ s/\'//g;
+							$common_name =~ s/\//_/g;
+						}
+               }
+				}
+         }
+      }
+		# write out new header line
+      print ">";
+		if ($orgn)
+		{
+         print "$orgn";
+		   if ($common_name)
+		   {
+		      print "_$common_name";
+		   }
+         print "_";
+		}
+      print "$acc\n";
+	}
+	else
+	{
+	   # this is not a header line, it's a seq line, just print it out unchanged
+      print "$_\n";
+   }
+}
+
+#
+# The functions below use the NCBI E_utils interface to 
+# retrieve the results of a esummary query from an NCBI database
+#
+# see: https://www.ncbi.nlm.nih.gov/books/NBK25500/
+#
+# Mark Stenglein
+# September 21, 2012
+#
+
+# package fetch_acc_esummary;
+
+
+my $db=undef;
+my $counter = 0;
+my $verbose = 0;
+ 
+sub fetch_acc_taxonomy_esummary
+{
+   $db = "taxonomy";
+   return fetch_acc_esummary(@_);
+}
+ 
+sub fetch_acc_nucleotide_esummary
+{
+   $db = "nucleotide";
+   return fetch_acc_esummary(@_);
+}
+
+sub fetch_acc_protein_esummary
+{
+   $db = "protein";
+   return fetch_acc_esummary(@_);
+}
+
+sub fetch_acc_esummary
+{
+   my @ids = ();
+   my $id_count = 0;
+   my $result = undef;
+
+   foreach my $id (@_)
+   {
+      push @ids, $id;
+      $id_count++;
+
+      # fetch 500 at a time
+      if ($id_count % 500 == 0)
+      {
+         # warn "$id_count ";
+         $result .= fetch_one_batch(@ids);
+         @ids = ();
+      }
+   }
+   if (scalar @ids > 0)
+   {
+      # fetch remaining accs
+      $result .= fetch_one_batch(@ids);
+   }
+
+   return $result;
+}
+
+# here, actually fetch data from NCBI
+sub fetch_one_batch()
+{
+   my @ids = @_;
+
+	$counter += 1;
+
+   # construct url
+   my $base_url = "https://www.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=$db&tool=fetch_acc_summary&email=markstenglein_at_yahoo.com";
+   my $id_url = "&id=";
+   foreach my $id (@ids)
+   {
+      $id_url .= "$id".","
+   }
+   my $url = $base_url.$id_url;
+
+	if ($verbose)
+	{
+      warn "URL: $url\n";
+	}
+
+   # here is actual interweb transaction
+   # my $efetch_result = get($url);
+   my $efetch_result = `curl -s "$url"`;
+
+	if ($verbose)
+	{
+	   warn "efetch_result: $efetch_result\n";
+	}
+
+	#
+	# If we get a returned string like this:
+	#
+   # <ERROR>Otherdb uid="146411794" db="nuccore" term="146411794"</ERROR>
+   #	
+	# it means we queried the wrong db.  Try query once more w/ right db
+	#
+	# We are assuming all IDs are from same db
+	#
+	 
+	my $new_db = undef;
+
+   # <ERROR>Otherdb uid="146411794" db="nuccore" term="146411794"</ERROR>
+	if ($efetch_result =~ /<ERROR>Otherdb uid="(\d+)" db="(\S+)"/)
+	{
+		$new_db = $2;
+
+      # construct url
+      my $base_url = "https://www.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=$new_db&tool=fetch_acc_summary&email=markstenglein_at_yahoo.com";
+      my $id_url = "&id=";
+      foreach my $id (@ids)
+      {
+         $id_url .= "$id".","
+      }
+      my $url = $base_url.$id_url;
+
+      # warn "Retry URL: $url\n";
+
+      # wait a third of a sec to avoid overloading NCBI servers (per their request)
+      Time::HiRes::usleep(333333);
+
+      # try again
+      ## $efetch_result = get($url);
+      $efetch_result = `curl -s "$url"`;
+	}
+
+   # warn "$efetch_result\n"; 
+
+   return $efetch_result;
+
+   # code below loads result into an XML datastructure
+   # my $xs = XML::Simple->new(forcearray=>1);
+   # my $ref = $xs->XMLin($efetch_result);
+
+   # wait a half of a sec to avoid overloading NCBI servers (per their request)
+   Time::HiRes::usleep(500000);
+}
+
