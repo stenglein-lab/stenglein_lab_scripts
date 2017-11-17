@@ -1,0 +1,133 @@
+#!/usr/bin/perl
+
+use strict;
+use Getopt::Long;
+use utf8;
+# use Text::Unidecode;
+
+my $usage = <<USAGE;
+
+  This script reads through a pubmed XML output file and prints out
+  author information for any authors found in the file (<Author> xml tag) in 
+  this tab-delimited format:
+
+  Last_name	First_name [Affiliation]
+
+  Reads from stdin writes to stdout
+
+  Mark Stenglein,  7/5/2016
+
+  Usage: $0 [-h] 
+
+   [-h]          print this message
+
+   [-a]          print affiliation info for authors
+
+   [-sa]         print simplified author affliliation info for authors
+
+  Usage Example:
+
+    $0 <pubmed_xml_file.xml> | sort | uniq
+
+  Generating the pubmed XML file:
+
+    To generate an xml file from pubmed results, first perform 
+	 a pubmed search using search terms of interest, e.g.:
+
+    https://www.ncbi.nlm.nih.gov/pubmed/?term=stenglein+M
+
+    Then click Send To -> File -> Format -> XML -> Create File
+
+USAGE
+
+# no command line args and no stdin
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+my $print_usage = 0;
+my $print_affiliation = 0;
+my $print_simple_affiliation = 0;
+
+
+GetOptions ("h" => \$print_usage, "a" => \$print_affiliation, "sa" => \$print_simple_affiliation);
+
+
+my %authors = ();
+my $looking_for_author_info = undef;
+my $first = undef;
+my $last = undef;
+my $affiliation = undef;
+my $simple_last = undef;
+my $simple_first = undef;
+my $simple_affiliation = undef;
+my $remove_accent_characters = 0; # TODO: configurable
+
+while (<>)
+{
+  chomp;
+  if (/<Author/)
+  {
+    $looking_for_author_info = 1;
+  }
+  elsif (/<\/Author>/)
+  {
+	 # actually output
+    $looking_for_author_info = 0;
+    # print "$simple_last,$simple_first\t$simple_affiliation\n";
+    print "$simple_last\t$simple_first";
+	 if ($print_affiliation or $print_simple_affiliation)
+	 {
+	    print "\t$simple_affiliation";
+	 }
+	 print "\n";
+  }
+
+  if ($looking_for_author_info and /<LastName>(.+)<\/LastName>/)
+  {
+     $last = $1;
+  }
+  elsif ($looking_for_author_info and /<ForeName>(.+)<\/ForeName>/)
+  {
+	  $first = $1;
+	  # these lines remove accent characters from names.  E.g.: Charrel  Rémi -> Charrel  Remi
+	  # requires Text::Unidecode module...
+	  if ($remove_accent_characters)
+	  {
+	     $simple_last = unidecode($last);
+	     $simple_first = unidecode($first);
+	  }
+	  else
+	  {
+	     $simple_last = $last;
+	     $simple_first = $first;
+	  }
+     # print "$simple_last\t$simple_first\n";
+  }
+  elsif ($looking_for_author_info and /<Affiliation>(.+)<\/Affiliation>/)
+  {
+	  my $affiliation = $1;
+	  if ($print_simple_affiliation)
+	  {
+	     my @aff_list = split ',', $affiliation;
+	     my $main_aff = undef;
+		  # try to find only the 'main' part of the affiliation, e.g. the University or College
+		  # assumes comma separated components of the affiliation...
+	     foreach my $aff_part (@aff_list)
+	     {
+	        if ($aff_part =~ /Univ|Center for Disease Control|Centers for Disease Control|College|US Dept|School|US Geo|Institut/)
+		     {
+			     $affiliation = $aff_part;
+		     }
+	     }
+	  } 
+
+	  # abbreviate
+	  # $affiliation =~ s/University/Univ./r;
+	  # $affiliation =~ s/Department/Dept./r;
+
+	  $simple_affiliation = $affiliation;
+
+	  # trim trailing and leading whitespaces
+	  $simple_affiliation =~ s/^\s+|\s+$//g
+
+  }
+}
