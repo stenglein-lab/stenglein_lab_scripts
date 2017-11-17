@@ -2,10 +2,54 @@
 
 use strict;
 use Levenshtein;
+use Getopt::Long;
 
-my $max_dist_to_print = undef;
+my $usage = <<USAGE;
 
-my $usage = "pairwise_lev_dist <file_of_strings_1> <file_of_strings_2>\n";
+  Calculates pairwise Levenshtein (edit) distances between two sets of strings
+
+  Reads from two files of strings (one string per line, multi-line strings not handled).
+
+  If input is fasta format (-f flag), then seqs will be identified by their headers
+
+  Outputs to stout.  Outputs matrix of strings and distance between them
+  or
+  Can output min or max distant pairs
+  or 
+  Can output pairs with distances below a threshhold (-t option)
+
+
+  Mark Stenglein May 20, 2011
+
+  usage: pairwise_lev_dist [-h] [-f] [-min] [-max] [-t min_cutoff] <file_of_strings_1> <file_of_strings_2>
+
+   -h      print this message
+
+   -f      input files are in fasta format 
+
+   -min    only output minimum distant pairs
+
+   -max    only output maximum distant pairs
+
+   -t min  only output pairs whose pairwise distance is <= this min cutoff 
+
+USAGE
+
+my $print_usage = 0;
+if (scalar @ARGV == 0) { print $usage and exit;}
+
+my $output_min = undef;
+my $output_max = undef;
+my $min_cutoff = undef;
+my $fasta_format = 0;
+
+GetOptions("min" => \$output_min, 
+           "max" => \$output_max, 
+			  "f" => \$fasta_format,
+			  "t=i" => \$min_cutoff,
+			  "h" => \$print_usage);
+
+if ($print_usage) {print $usage and exit;}
 
 my $file1 = shift or print ($usage) and die($!);
 my $file2 = shift or print ($usage) and die($!);
@@ -14,33 +58,87 @@ open (my $fh1, "<", $file1) or print ($usage) and die($!);
 open (my $fh2, "<", $file2) or print ($usage) and die($!);
 
 my @strings1 = ();
+my @strings1_ids = ();
 my @strings2 = ();
+my @strings2_ids = ();
 
 while (<$fh1>)
 {
    chomp;
-   push @strings1, $_;
+	if ($fasta_format & /^>(.*)/)
+	{
+	   push @strings1_ids, $1;
+	}
+	else
+	{
+      push @strings1, $_;
+	}
 }
 while (<$fh2>)
 {
    chomp;
-   push @strings2, $_;
+	if ($fasta_format & /^>(.*)/)
+	{
+	   push @strings2_ids, $1;
+	}
+	else
+	{
+      push @strings2, $_;
+	}
 }
 
 my $i1 = 0;
-my $i2 = 0;
 my $d = 0;
+my $min_pair_dist = 99999999;
+my $max_pair_dist = 0;
+my $min_s1 = undef;
+my $min_s2 = undef;
+my $max_s1 = undef;
+my $max_s2 = undef;
+
 foreach my $s1 (@strings1)
 {
    $i1++;
+   my $i2 = 0;
    foreach my $s2 (@strings2)
    {
       $i2++;
       $d = Levenshtein::levenshtein ($s1, $s2);
-      if (defined $max_dist_to_print and ($d > $max_dist_to_print))
+      if ($output_min && ($d < $min_pair_dist))
       {
-		   next;
+         $min_pair_dist = $d;
+         $min_s1 = $s1;
+         $min_s2 = $s2;
       }
-      print "$i1\t$s1\t$i2\t$s2\t$d\n";
+      if ($output_max && ($d > $max_pair_dist))
+      {
+         $max_pair_dist = $d;
+         $max_s1 = $s1;
+         $max_s2 = $s2;
+      }
+
+		if (!defined $min_cutoff or ($min_cutoff and ($d <= $min_cutoff)))
+		{
+		   if ($fasta_format)
+		   {
+			   my $id1 = $strings1_ids[($i1-1)];
+			   my $id2 = $strings2_ids[($i2-1)]; 
+			   print "$id1\t$s1\t$id2\t$s2\t$d\n";
+		   }
+		   else
+		   {
+            print "$i1\t$s1\t$i2\t$s2\t$d\n";
+		   }
+		}
    }
+}
+
+if ($output_min)
+{
+   print "minimum distant pair:\t$min_s1\t$min_s2\t$min_pair_dist\n";
+}
+
+if ($output_max)
+{
+   print "maximum distant pair:\t$max_s1\t$max_s2\t$max_pair_dist\n";
 }
