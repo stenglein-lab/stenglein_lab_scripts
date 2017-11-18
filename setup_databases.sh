@@ -25,10 +25,10 @@ read x
 cd /home/databases
 rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/NCBI_Taxonomy/ ./NCBI_Taxonomy | tee -a db_rsync_log.txt 
 rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/human/ ./human | tee -a db_rsync_log.txt 
-rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/mouse/ ./mouse | tee -a db_rsync_log.txt 
-rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/mosquito/ ./mosquito | tee -a db_rsync_log.txt 
-rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/tick/ ./tick | tee -a db_rsync_log.txt 
-rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/snake/ ./snake | tee -a db_rsync_log.txt 
+# rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/mouse/ ./mouse | tee -a db_rsync_log.txt 
+# rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/mosquito/ ./mosquito | tee -a db_rsync_log.txt 
+# rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/tick/ ./tick | tee -a db_rsync_log.txt 
+# rsync -av --ignore-errors --stats --rsh=ssh stengleinlab101.cvmbs.colostate.edu::databases/snake/ ./snake | tee -a db_rsync_log.txt 
 
 # setup NCBI Taxonomy db in mysql db
 echo "import NCBI Taxonomy db into mysql db"
