@@ -688,9 +688,11 @@ mv muscle3.8.31_i86linux64 /home/apps/bin
 echo install PhyML
 echo "note: the developers of PhyML would like your name and email.  Please go to: http://www.atgc-montpellier.fr/phyml/binaries.php"
 cd /home/apps
-wget http://www.atgc-montpellier.fr/download/binaries/phyml/PhyML-3.1.zip
-unzip PhyML-3.1.zip
-cp PhyML-3.1/PhyML-3.1_linux64 /home/apps/bin
+wget https://github.com/stephaneguindon/phyml/archive/v3.3.20170530.tar.gz
+cd phyml-3.3.20170530/
+./autogen.sh 
+make
+cp phyml-mpi /home/apps/bin
 cd /home/apps
 
 # install quast
