@@ -1,0 +1,73 @@
+#!/usr/bin/perl
+
+# Converts plain text seqs to fasta format
+#
+# this script takes as input either:
+#
+# (1) a bunch of unnamed sequences from stdin (one per line) 
+# and outputs them as numbered fasta format sequences
+# 
+# or 
+#
+# (2) a tab delimited two-column plain text file and outputs 
+# the first field as the header and the second field as the seq
+#
+# Mark Stenglein 10/22/2014
+
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+
+my $usage = <<USAGE;
+
+  This script converts plain text seqs to fasta format
+
+  This script takes as input either:
+
+    (1) a bunch of unnamed sequences from stdin (one per line) 
+    and outputs them as numbered fasta format sequences
+ 
+  or 
+
+    (2) a tab delimited two-column plain text file and outputs 
+    the first field as the header and the second field as the seq
+
+  Reads from stdin, outputs to stdout in fasta format
+
+
+  Mark Stenglein,  10/22/2014
+
+
+  Usage: $0 [-h] 
+
+   [-h]          print this message
+
+USAGE
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+GetOptions ("h" => \$print_usage);
+
+
+my $line_counter = 1;
+
+while (<>)
+{
+   chomp;
+	my @fields = split "\t";
+	if (scalar @fields == 1)
+	{
+      print ">$line_counter\n$_\n";
+	}
+	elsif (scalar @fields == 2)
+	{
+      print ">$fields[0]\n$fields[1]\n";
+	}
+	else
+	{
+	   die "unexpected format on line $line_counter: $_\n";
+	}
+   $line_counter++;
+}
