@@ -31,6 +31,7 @@
 
 use strict;
 use Getopt::Long;
+use Data::Dumper;
 use feature "current_sub";
 use taxid_to_description;
 use taxid_to_kingdom;
@@ -64,14 +65,18 @@ my $krona_output = 0;
 my $tab_indent_output = 0;
 my $output_query_map = 0;
 my %gi_taxid_map = ();
+my $collapse_below_species = 0; 
 
 my $ignore_ties = 0;
 my $do_lca = 0;
 my $output_rank = 0;
-# my %tree = ();
+
+# Taxonomy info stored in these hashes
 my %node_rank = ();
 my %node_parent = ();
 my %node_descendents = ();
+my %subspecies_taxid_map = ();
+
 my $tree_output = 0;
 my $tally_all_hits = 0;
 
@@ -119,6 +124,7 @@ my $usage = <<USAGE;
              [-et taxid]
              [-k ]
              [-nd]
+             [-cs]
              <blast_output_file(s)> 
 
    -w weight_file  Weight queries by the values specified in this file.  This could be useful, for example
@@ -183,6 +189,10 @@ my $usage = <<USAGE;
    -nd             if -it or -et options are used, don't include or exclude descendent taxids
                    default is to include or exclude descendent taxids
 
+   -cs             Collapse any results from below the species level to the species level
+	                default is to report results at the lowest annotated taxonomic level, even if
+						 below the species level (i.e. at the sub-species level).
+
    blast_results   Multiple blast results files can be specified (unless using -f)
                    if a single results file is specified, output will go to stdout
                    if multiple files are specified, output files will be created (see -o)
@@ -212,11 +222,12 @@ GetOptions("h" => \$print_usage,
            "nd" => \$no_descendents,
            "k" => \$krona_output,
            "a" => \$tally_all_hits,
+           "cs" => \$collapse_below_species,
            "m" => \$sort_by_evalue);
 
 if ($print_usage) { print $usage and exit; }
 
-if ($do_lca) { print "Sorry, LCA not correctly implemented yet...\n" and exit; }
+# if ($do_lca) { print "Sorry, LCA not correctly implemented yet...\n" and exit; }
 
 # connect to mysql database
 my $dbh = DBI->connect("DBI:mysql:database=NCBI_Taxonomy",
@@ -338,13 +349,14 @@ foreach my $aln_file (@aln_files)
       chomp;
 
       my @fields = split "\t";
-      if (scalar (@fields == 12))
+      if (scalar (@fields >= 12))
       {
          # this is the format we expect
          # The order of fields for BLAST result in tabular format is: 
          # 0 query id, 1 database sequence (subject) id, 2 percent identity, 3 alignment length, 
          # 4 number of mismatches, 5 number of gap openings, 6 query start, 7 query end, 
          # 8 subject start, 9 subject end, 10 Expect value, 11 HSP bit score. 
+			# 12 on optional additional fields...
 
          my $query = $fields[0];
          push @queries_array , $query;
@@ -430,8 +442,14 @@ foreach my $aln_file (@aln_files)
       {
          my $gi = $gis_to_fetch[$j];
          my $taxid = $taxids[$j];
+			# collapse from sub-species to species level...
+			if ($collapse_below_species and $subspecies_taxid_map{$taxid})
+			{
+			   $taxid = $subspecies_taxid_map{$taxid};
+            # warn "collapsing $gi -> $taxid\n";
+			}
          $gi_taxid_map{$gi} = $taxid;
-         warn "$gi -> $taxid\n";
+         # warn "$gi -> $taxid\n";
       }
    }
 
@@ -443,6 +461,13 @@ foreach my $aln_file (@aln_files)
       my $number_hits = scalar (@hits);
       my $lca_taxid = undef;
 
+      my $gi = undef;
+      my $mean_evalue = undef;
+      my $mean_pct_id = undef;
+
+		my $evalue_sum = 0;
+		my $pct_id_sum = 0;
+
       my %hit_taxids = ();
       foreach my $hit (@hits)
       {
@@ -451,21 +476,36 @@ foreach my $aln_file (@aln_files)
          my $taxid = $gi_taxid_map{$gi};
          if (!defined $taxid)
          {
-            warn "__LINE_ TAXID undefined for GI: $gi\n";
+            warn "__LINE_ TAXID undefined for GI: $gi.  Setting this taxid to root\n";
+				# set to root if not defined.
+				# a taxid not being defined may reflect out of sync taxonomy and nt (local) databases...
+				$taxid = 1;
          }
 
          # keep track of which taxids this query hits -> will use to find LCA
          $hit_taxids{$taxid} += 1;
 
-         if ($output_descriptions)
+			# calculate average e-value and % identity of hits 
+         @fields = split "\t", $hit;
+         if (scalar @fields < 12)
          {
-            $taxid_gi_tally{$taxid}{$gi} += 1;
+            die "error: unexpected format for blast hit: line: $hit\n";
          }
+         $evalue_sum += $fields[10];
+         $pct_id_sum += $fields[2];
       }
+
+		if ($number_hits > 0)
+		{
+		   my $mean_evalue_unformatted = $evalue_sum / $number_hits;
+         $mean_evalue = sprintf "%0.1e", $mean_evalue_unformatted;
+		   $mean_pct_id = $pct_id_sum / $number_hits;
+		}
 
       # if >1 hit, find the LCA of the hits...
       my $lca_taxid = undef;
-      if (((scalar @hits) > 1) and $do_lca)
+		my $num_taxids_hit = scalar keys %hit_taxids;
+      if ($do_lca)
       {
          $lca_taxid = identify_lca(keys %hit_taxids); 
       }
@@ -477,6 +517,9 @@ foreach my $aln_file (@aln_files)
          # keep track of which query IDs hit each taxid
          push @{$taxid_tally{$lca_taxid}{queries}}, $query;
 
+         push @{$taxid_tally{$lca_taxid}{evalues}}, $mean_evalue;
+         push @{$taxid_tally{$lca_taxid}{pct_ids}}, $mean_pct_id;
+
          # propagate tally up tree to root 
          if ($tree_output)
          {
@@ -484,6 +527,8 @@ foreach my $aln_file (@aln_files)
             while ($parent_taxid = $node_parent{$parent_taxid})
             {
                $taxid_tally{$parent_taxid}{tally} += $query_weights{$query};
+               push @{$taxid_tally{$parent_taxid}{evalues}}, $mean_evalue;
+               push @{$taxid_tally{$parent_taxid}{pct_ids}}, $mean_pct_id;
                if ($parent_taxid == 1) { last; }  # at the root
             }
          }
@@ -495,7 +540,7 @@ foreach my $aln_file (@aln_files)
          foreach my $hit (@hits)
          {
             @fields = split "\t", $hit;
-            if (scalar @fields != 12)
+            if (scalar @fields < 12)
             {
                die "error: unexpected format for blast hit: line: $hit\n";
             }
@@ -508,6 +553,7 @@ foreach my $aln_file (@aln_files)
             {
                warn "__LINE__ 1 TAXID undefined for GI: $gi\n";
             }
+
             # "normalized" tally
             $taxid_tally{$taxid}{tally} += ($query_weights{$query}/$number_hits);
             if ($output_descriptions)
@@ -548,8 +594,8 @@ foreach my $aln_file (@aln_files)
       open ($out_fh, ">", $out_fn) or die "error: failed to open output file $out_fn\n";
    }
 
-   if (!$do_lca)   # this not implemented for LCA yet
-   {
+   # if (!$do_lca)   # this not implemented for LCA yet
+   # {
       # calculate evalue stats and store back in hash
       foreach my $taxid (keys %taxid_tally)
       {
@@ -576,7 +622,8 @@ foreach my $aln_file (@aln_files)
             $taxid_tally{$taxid}{max_pct_id} = $max_pct_id;
          }
       }
-	}
+
+	# }
 
    # do sorting
    my @sorted_taxids = ();
@@ -614,7 +661,7 @@ foreach my $aln_file (@aln_files)
          foreach my $hit (@hits)
          {
             @fields = split "\t", $hit;
-            if (scalar @fields != 12)
+            if (scalar @fields < 12)
             {
                die "error: unexpected format for blast hit: line: $hit\n";
             }
@@ -957,6 +1004,49 @@ sub parse_nodes
          die "error: unexpected format in $nodes_file file: $_\n";
       }
    }
+
+	if ($collapse_below_species)
+	{
+	   generate_subspecies_to_species_map();
+	}
+
+   return 0;
+}
+
+# this function maps sub species-level rank taxids to their species taxid
+sub generate_subspecies_to_species_map
+{
+	warn "collapsing sub species taxids to species level\n";
+   COLLAPSE_TAXID: foreach my $taxid (keys %node_rank)
+	{
+		my $rank = $node_rank{$taxid};
+
+		# "no" -> "no rank"
+	   if ($node_rank{$taxid} eq "no")
+		{
+			my $current_taxid = $taxid;
+
+		   # go up to tree to find a species in lineage above it
+			while (my $parent_taxid = $node_parent{$current_taxid})
+			{
+
+				if ($parent_taxid == 1)
+				{
+				   next COLLAPSE_TAXID;
+				}
+
+			   if ($node_rank{$parent_taxid} eq "species")
+				{
+				   $subspecies_taxid_map{$taxid} = $parent_taxid;
+					# warn "collapsing $taxid -> $parent_taxid\n";
+					next COLLAPSE_TAXID;
+				}
+
+				$current_taxid = $parent_taxid;
+			}
+		}
+
+	}
 }
 
 # these hashes will contain taxids that should (included) or shouldn't (excluded) be output
@@ -998,122 +1088,94 @@ sub add_excluded_taxids
 sub identify_lca
 {
    my @taxids = @_;
-   my $taxids_string = join " ", @taxids;
-   # find LCA of all taxids
 
-   # this will be return value
-   my $consensus_taxid = undef;
+	if (scalar @taxids == 0)
+	{
+	   return;
+	} 
+	elsif (scalar @taxids == 1)
+	{
+	   return $taxids[0];
+	}
 
-   # to keep track of tree structure...
-   my %taxid_lca_kids = ();
-   
-   # First, starting w/ each taxid, go up tree to root and add a count at each node encountered
-   my %taxid_lca_count = ();
-   foreach my $taxid (@taxids)
-   {
-      # warn "TAXID: $taxid\n";
-      my $at_root = 0;
-      while (!$at_root)
-      {
-         if ($taxid)
-         {
-            $taxid_lca_count{$taxid} += 1;
-         }
-         else
-         {
-            # if we somehow were at or got to an orphan part of the tree 
-            last;
-         }
-         if ($taxid == 1)
-         {
-            $at_root = 1;
-         }
-         else
-         {
-            my $child_taxid = $taxid;
-            $taxid = $node_parent{$child_taxid};
-            push @{$taxid_lca_kids{$taxid}}, $child_taxid;
-            if (!$taxid)
-            {
-               warn "warning: no parent node for taxid: $taxid\n";
-               last;
-            }
-         }
-      }
-   }
-   # now actually identify LCA - i.e., the taxid w/ the highest count and is furthest from root
-   my $consensus_count = 0;
-   my $consensus_rank = 0;
-   foreach my $taxid (keys %taxid_lca_count)
-   {
-      if ($taxid_lca_count{$taxid} > $consensus_count)
-      {
-         $consensus_count = $taxid_lca_count{$taxid};
-         $consensus_taxid = $taxid;
-         my $at_root = 0;
-         $consensus_rank = 0;
-         my $parent_taxid = $taxid;
-         while ($parent_taxid = $node_parent{$parent_taxid})
-         {
-            $consensus_rank += 1;
-            if ($parent_taxid == 1) { last; }  # at the root
-         }
-      }
-      elsif ($taxid_lca_count{$taxid} == $consensus_count)
-      {
-         # are we further from root then current winner?
-         my $at_root = 0;
-         my $this_consensus_rank = 0;
-         my $parent_taxid = $taxid;
-         while ($parent_taxid = $node_parent{$parent_taxid})
-         {
-            $this_consensus_rank += 1;
-            if ($parent_taxid == 1) { last; } # at root
-         }
-         if ($this_consensus_rank > $consensus_rank)
-         {
-            # we are further from root
-            $consensus_taxid = $taxid;
-            $consensus_rank = $this_consensus_rank;
-         }
-      }
-   }
+   my $taxid_1 = shift @taxids;
+   my $taxid_2 = shift @taxids;
 
-   # output a tree depicting for debugging
+	# calculate LCA of 1st 2 taxids
+	my $lca = calculate_lca_of_2($taxid_1, $taxid_2);
 
-   my $space_index = 0;
-   output_kids(1); # root
+	# recursively identify LCA of any additional nodes
+	# and the LCA of nodes analyzed so far.
+	while (my $another_taxid = shift @taxids)
+	{
+	   $lca = calculate_lca_of_2 ($lca, $another_taxid);
+	}
 
-   sub output_kids
-   {
-      my $parent_taxid = shift @_;
+	return $lca;
+}
 
-      for (my $s = 0; $s < $space_index; $s++)
-      {
-         print STDERR " ";
-      }
+# this routine calculates the LCA of 2 nodes in the NCBI Taxonomy tree...
+# see: https://www.hackerrank.com/topics/lowest-common-ancestor
+sub calculate_lca_of_2
+{
+   my ($node1, $node2) = @_;
 
-      if ($parent_taxid == $consensus_taxid)
-      {
-         print STDERR "*";
-      }
-      print STDERR "$parent_taxid $taxid_lca_count{$parent_taxid}";
-      print STDERR "\n";
+	# node == 1 --> is the root node.  LCA of root and anything is always root
+	if ($node1 == 1 or $node2 == 1)
+	{
+		# return root node
+	   return 1;
+	}
 
-      $space_index += 3;
-      if (defined $taxid_lca_kids{$parent_taxid}) 
-      {
-         my @kids = @{$taxid_lca_kids{$parent_taxid}};
-         foreach my $kid (@kids)
-         {
-            output_kids($kid);
-         }
-      }
-      $space_index -= 3;
-   }
+	# to keep track of nodes in 1st node's lineage path to root
+	my %nodes_in_first_lineage = ();
 
-   warn "input LCA taxids: $taxids_string -> LCA taxid: $consensus_taxid\n";
-   return $consensus_taxid;
+	# go up to root from first node
+   while (1)
+	{
+	   $nodes_in_first_lineage{$node1} = 1;
+		if ($node1 == 1) 
+		{ 
+			# made it to root
+		   last; 
+      } 
+		my $child_node = $node1;
+
+		# move up to the parent position in the lineage
+		$node1 = $node_parent{$node1};
+
+		# if parent undefined
+		if (!defined $node1)
+		{
+		   warn "error: undefined parent in NCBI Taxonomy tree for node: $child_node\n";
+			# make parent root if parent undefined
+			$node1 = 1;
+		}
+	}
+
+	# to up to root from 2nd node
+	# stop when hit first node also in path from first node
+	while (1)
+	{
+	   if ($nodes_in_first_lineage{$node2})
+		{
+			warn "LCA of $_[0] and $_[1] => $node2\n";
+			# this is the LCA: the first point in node2's lineage that is also in node1's lineage
+		   return $node2;
+		}
+		my $child_node = $node2;
+
+		# move up to the parent position in the lineage
+		$node2 = $node_parent{$node2};
+
+		# if parent undefined
+		if (!defined $node2)
+		{
+		   warn "error: undefined parent in NCBI Taxonomy tree for node: $child_node\n";
+			# make parent root if parent undefined
+			$node2 = 1;
+		}
+	}
 }
 
 
