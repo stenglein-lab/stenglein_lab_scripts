@@ -868,6 +868,10 @@ wget https://github.com/tseemann/barrnap/archive/0.8.tar.gz
 tar xvf 0.8.tar.gz
 cd /home/apps
 
+# install Ruby
+sudo apt-get update
+sudo apt-get -y install ruby-full
+
 
 
 # database setups: see script setup_databases.sh
