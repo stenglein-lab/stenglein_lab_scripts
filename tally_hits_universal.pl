@@ -184,14 +184,14 @@ my $usage = <<USAGE;
 
    -k              Create a file that can be used as input for the ktImportText krona command
                    to create an interactive visualization of data.  
-						 File will be named <input_filename>.krona
+                   File will be named <input_filename>.krona
 
    -nd             if -it or -et options are used, don't include or exclude descendent taxids
                    default is to include or exclude descendent taxids
 
    -cs             Collapse any results from below the species level to the species level
-	                default is to report results at the lowest annotated taxonomic level, even if
-						 below the species level (i.e. at the sub-species level).
+                   default is to report results at the lowest annotated taxonomic level, even if
+                   below the species level (i.e. at the sub-species level).
 
    blast_results   Multiple blast results files can be specified (unless using -f)
                    if a single results file is specified, output will go to stdout
@@ -356,7 +356,7 @@ foreach my $aln_file (@aln_files)
          # 0 query id, 1 database sequence (subject) id, 2 percent identity, 3 alignment length, 
          # 4 number of mismatches, 5 number of gap openings, 6 query start, 7 query end, 
          # 8 subject start, 9 subject end, 10 Expect value, 11 HSP bit score. 
-			# 12 on optional additional fields...
+         # 12 on optional additional fields...
 
          my $query = $fields[0];
          push @queries_array , $query;
@@ -442,12 +442,12 @@ foreach my $aln_file (@aln_files)
       {
          my $gi = $gis_to_fetch[$j];
          my $taxid = $taxids[$j];
-			# collapse from sub-species to species level...
-			if ($collapse_below_species and $subspecies_taxid_map{$taxid})
-			{
-			   $taxid = $subspecies_taxid_map{$taxid};
+         # collapse from sub-species to species level...
+         if ($collapse_below_species and $subspecies_taxid_map{$taxid})
+         {
+            $taxid = $subspecies_taxid_map{$taxid};
             # warn "collapsing $gi -> $taxid\n";
-			}
+         }
          $gi_taxid_map{$gi} = $taxid;
          # warn "$gi -> $taxid\n";
       }
@@ -465,8 +465,8 @@ foreach my $aln_file (@aln_files)
       my $mean_evalue = undef;
       my $mean_pct_id = undef;
 
-		my $evalue_sum = 0;
-		my $pct_id_sum = 0;
+      my $evalue_sum = 0;
+      my $pct_id_sum = 0;
 
       my %hit_taxids = ();
       foreach my $hit (@hits)
@@ -477,15 +477,15 @@ foreach my $aln_file (@aln_files)
          if (!defined $taxid)
          {
             warn "__LINE_ TAXID undefined for GI: $gi.  Setting this taxid to root\n";
-				# set to root if not defined.
-				# a taxid not being defined may reflect out of sync taxonomy and nt (local) databases...
-				$taxid = 1;
+            # set to root if not defined.
+            # a taxid not being defined may reflect out of sync taxonomy and nt (local) databases...
+            $taxid = 1;
          }
 
          # keep track of which taxids this query hits -> will use to find LCA
          $hit_taxids{$taxid} += 1;
 
-			# calculate average e-value and % identity of hits 
+         # calculate average e-value and % identity of hits 
          @fields = split "\t", $hit;
          if (scalar @fields < 12)
          {
@@ -495,16 +495,16 @@ foreach my $aln_file (@aln_files)
          $pct_id_sum += $fields[2];
       }
 
-		if ($number_hits > 0)
-		{
-		   my $mean_evalue_unformatted = $evalue_sum / $number_hits;
+      if ($number_hits > 0)
+      {
+         my $mean_evalue_unformatted = $evalue_sum / $number_hits;
          $mean_evalue = sprintf "%0.1e", $mean_evalue_unformatted;
-		   $mean_pct_id = $pct_id_sum / $number_hits;
-		}
+         $mean_pct_id = $pct_id_sum / $number_hits;
+      }
 
       # if >1 hit, find the LCA of the hits...
       my $lca_taxid = undef;
-		my $num_taxids_hit = scalar keys %hit_taxids;
+      my $num_taxids_hit = scalar keys %hit_taxids;
       if ($do_lca)
       {
          $lca_taxid = identify_lca(keys %hit_taxids); 
@@ -599,7 +599,7 @@ foreach my $aln_file (@aln_files)
       # calculate evalue stats and store back in hash
       foreach my $taxid (keys %taxid_tally)
       {
-			# TODO: these stats do not take into account query weights 
+         # TODO: these stats do not take into account query weights 
          my @evalues = @{$taxid_tally{$taxid}{evalues}};
          # my @sorted_evalues = sort {@evalues;
          my @sorted_evalues = sort {$a <=> $b} @evalues;
@@ -623,7 +623,7 @@ foreach my $aln_file (@aln_files)
          }
       }
 
-	# }
+   # }
 
    # do sorting
    my @sorted_taxids = ();
@@ -653,7 +653,7 @@ foreach my $aln_file (@aln_files)
   { 
    if ($annotated_blast_output) 
    {  
-	   # die "unsupported option for gsnap output \n"; 
+      # die "unsupported option for gsnap output \n"; 
       foreach my $query (@queries_array)
       {
          my @hits = @{$queries{$query}{best_hits}};
@@ -873,16 +873,16 @@ foreach my $aln_file (@aln_files)
 
       output_children(1);
 
-		if ($krona_output)
-		{
-			my @ancestor_chain = ();
-			my $krona_output_filename = $aln_file.".krona";
-			open (my $krona_fh, ">", $krona_output_filename) or print "error: couldn't open krona output file: $krona_output_filename for writing\n";
+      if ($krona_output)
+      {
+         my @ancestor_chain = ();
+         my $krona_output_filename = $aln_file.".krona";
+         open (my $krona_fh, ">", $krona_output_filename) or print "error: couldn't open krona output file: $krona_output_filename for writing\n";
 
-		   output_children_for_krona(1);
+         output_children_for_krona(1);
 
-			sub output_children_for_krona
-			{
+         sub output_children_for_krona
+         {
             my $this_taxid = shift @_;
 
             # no tally or less than cutoff
@@ -906,17 +906,17 @@ foreach my $aln_file (@aln_files)
                return;
             }
 
-				# don't process root node
-				if ($this_taxid != 1)
-				{
-				   push @ancestor_chain, $this_taxid;
-					my $rank = $node_rank{$this_taxid};
-					if ($rank eq "genus" or $rank eq "species")
-					{
-					   # output for krona at genus or species level if genus undefined
-					   my $magnitude = $taxid_tally{$this_taxid}{tally};
-					   print $krona_fh "$magnitude";
-					   foreach my $ancestor (@ancestor_chain)
+            # don't process root node
+            if ($this_taxid != 1)
+            {
+               push @ancestor_chain, $this_taxid;
+               my $rank = $node_rank{$this_taxid};
+               if ($rank eq "genus" or $rank eq "species")
+               {
+                  # output for krona at genus or species level if genus undefined
+                  my $magnitude = $taxid_tally{$this_taxid}{tally};
+                  print $krona_fh "$magnitude";
+                  foreach my $ancestor (@ancestor_chain)
                   {
 
                      my @scientific_names = taxid_to_description::taxid_to_scientific_name($ancestor);
@@ -926,23 +926,23 @@ foreach my $aln_file (@aln_files)
                   print $krona_fh "\n";
                   pop @ancestor_chain;
                   return; # return once we print out a node for this lineage...
-				   }
-				}
+               }
+            }
 
             if ($node_descendents{$this_taxid})
             {
                my @child_taxids = @{$node_descendents{$this_taxid}};
                foreach my $taxid (@child_taxids)
-					{
+               {
                   output_children_for_krona($taxid);
-					}
-			   }
+               }
+            }
 
-		      pop @ancestor_chain;
-			}
+            pop @ancestor_chain;
+         }
 
-		   close $krona_fh;
-		}
+         close $krona_fh;
+      }
   }
    close $out_fh;
 }
@@ -1005,10 +1005,10 @@ sub parse_nodes
       }
    }
 
-	if ($collapse_below_species)
-	{
-	   generate_subspecies_to_species_map();
-	}
+   if ($collapse_below_species)
+   {
+      generate_subspecies_to_species_map();
+   }
 
    return 0;
 }
@@ -1016,37 +1016,37 @@ sub parse_nodes
 # this function maps sub species-level rank taxids to their species taxid
 sub generate_subspecies_to_species_map
 {
-	warn "collapsing sub species taxids to species level\n";
+   warn "collapsing sub species taxids to species level\n";
    COLLAPSE_TAXID: foreach my $taxid (keys %node_rank)
-	{
-		my $rank = $node_rank{$taxid};
+   {
+      my $rank = $node_rank{$taxid};
 
-		# "no" -> "no rank"
-	   if ($node_rank{$taxid} eq "no")
-		{
-			my $current_taxid = $taxid;
+      # "no" -> "no rank"
+      if ($node_rank{$taxid} eq "no")
+      {
+         my $current_taxid = $taxid;
 
-		   # go up to tree to find a species in lineage above it
-			while (my $parent_taxid = $node_parent{$current_taxid})
-			{
+         # go up to tree to find a species in lineage above it
+         while (my $parent_taxid = $node_parent{$current_taxid})
+         {
 
-				if ($parent_taxid == 1)
-				{
-				   next COLLAPSE_TAXID;
-				}
+            if ($parent_taxid == 1)
+            {
+               next COLLAPSE_TAXID;
+            }
 
-			   if ($node_rank{$parent_taxid} eq "species")
-				{
-				   $subspecies_taxid_map{$taxid} = $parent_taxid;
-					# warn "collapsing $taxid -> $parent_taxid\n";
-					next COLLAPSE_TAXID;
-				}
+            if ($node_rank{$parent_taxid} eq "species")
+            {
+               $subspecies_taxid_map{$taxid} = $parent_taxid;
+               # warn "collapsing $taxid -> $parent_taxid\n";
+               next COLLAPSE_TAXID;
+            }
 
-				$current_taxid = $parent_taxid;
-			}
-		}
+            $current_taxid = $parent_taxid;
+         }
+      }
 
-	}
+   }
 }
 
 # these hashes will contain taxids that should (included) or shouldn't (excluded) be output
@@ -1058,7 +1058,7 @@ sub add_included_taxids
       $including_taxids = 1;
       $included_taxids{$taxid} = 1;
       # warn "adding taxid: $taxid to the included list\n";
-		if (defined $node_descendents{$taxid} and !$no_descendents)
+      if (defined $node_descendents{$taxid} and !$no_descendents)
       # if (!$no_descendents and @{$node_descendents{$taxid}})
       {
          my @children = @{$node_descendents{$taxid}};
@@ -1076,7 +1076,7 @@ sub add_excluded_taxids
       $excluded_taxids{$taxid} = 1;
       warn "adding taxid: $taxid to the excluded list\n";
       # if (!$no_descendents and @{$node_descendents{$taxid}})
-		if (defined $node_descendents{$taxid} and !$no_descendents)
+      if (defined $node_descendents{$taxid} and !$no_descendents)
       {
          my @children = @{$node_descendents{$taxid}};
          add_excluded_taxids(@children);
@@ -1089,29 +1089,29 @@ sub identify_lca
 {
    my @taxids = @_;
 
-	if (scalar @taxids == 0)
-	{
-	   return;
-	} 
-	elsif (scalar @taxids == 1)
-	{
-	   return $taxids[0];
-	}
+   if (scalar @taxids == 0)
+   {
+      return;
+   } 
+   elsif (scalar @taxids == 1)
+   {
+      return $taxids[0];
+   }
 
    my $taxid_1 = shift @taxids;
    my $taxid_2 = shift @taxids;
 
-	# calculate LCA of 1st 2 taxids
-	my $lca = calculate_lca_of_2($taxid_1, $taxid_2);
+   # calculate LCA of 1st 2 taxids
+   my $lca = calculate_lca_of_2($taxid_1, $taxid_2);
 
-	# recursively identify LCA of any additional nodes
-	# and the LCA of nodes analyzed so far.
-	while (my $another_taxid = shift @taxids)
-	{
-	   $lca = calculate_lca_of_2 ($lca, $another_taxid);
-	}
+   # recursively identify LCA of any additional nodes
+   # and the LCA of nodes analyzed so far.
+   while (my $another_taxid = shift @taxids)
+   {
+      $lca = calculate_lca_of_2 ($lca, $another_taxid);
+   }
 
-	return $lca;
+   return $lca;
 }
 
 # this routine calculates the LCA of 2 nodes in the NCBI Taxonomy tree...
@@ -1120,62 +1120,62 @@ sub calculate_lca_of_2
 {
    my ($node1, $node2) = @_;
 
-	# node == 1 --> is the root node.  LCA of root and anything is always root
-	if ($node1 == 1 or $node2 == 1)
-	{
-		# return root node
-	   return 1;
-	}
+   # node == 1 --> is the root node.  LCA of root and anything is always root
+   if ($node1 == 1 or $node2 == 1)
+   {
+      # return root node
+      return 1;
+   }
 
-	# to keep track of nodes in 1st node's lineage path to root
-	my %nodes_in_first_lineage = ();
+   # to keep track of nodes in 1st node's lineage path to root
+   my %nodes_in_first_lineage = ();
 
-	# go up to root from first node
+   # go up to root from first node
    while (1)
-	{
-	   $nodes_in_first_lineage{$node1} = 1;
-		if ($node1 == 1) 
-		{ 
-			# made it to root
-		   last; 
+   {
+      $nodes_in_first_lineage{$node1} = 1;
+      if ($node1 == 1) 
+      { 
+         # made it to root
+         last; 
       } 
-		my $child_node = $node1;
+      my $child_node = $node1;
 
-		# move up to the parent position in the lineage
-		$node1 = $node_parent{$node1};
+      # move up to the parent position in the lineage
+      $node1 = $node_parent{$node1};
 
-		# if parent undefined
-		if (!defined $node1)
-		{
-		   warn "error: undefined parent in NCBI Taxonomy tree for node: $child_node\n";
-			# make parent root if parent undefined
-			$node1 = 1;
-		}
-	}
+      # if parent undefined
+      if (!defined $node1)
+      {
+         warn "error: undefined parent in NCBI Taxonomy tree for node: $child_node\n";
+         # make parent root if parent undefined
+         $node1 = 1;
+      }
+   }
 
-	# to up to root from 2nd node
-	# stop when hit first node also in path from first node
-	while (1)
-	{
-	   if ($nodes_in_first_lineage{$node2})
-		{
-			warn "LCA of $_[0] and $_[1] => $node2\n";
-			# this is the LCA: the first point in node2's lineage that is also in node1's lineage
-		   return $node2;
-		}
-		my $child_node = $node2;
+   # to up to root from 2nd node
+   # stop when hit first node also in path from first node
+   while (1)
+   {
+      if ($nodes_in_first_lineage{$node2})
+      {
+         warn "LCA of $_[0] and $_[1] => $node2\n";
+         # this is the LCA: the first point in node2's lineage that is also in node1's lineage
+         return $node2;
+      }
+      my $child_node = $node2;
 
-		# move up to the parent position in the lineage
-		$node2 = $node_parent{$node2};
+      # move up to the parent position in the lineage
+      $node2 = $node_parent{$node2};
 
-		# if parent undefined
-		if (!defined $node2)
-		{
-		   warn "error: undefined parent in NCBI Taxonomy tree for node: $child_node\n";
-			# make parent root if parent undefined
-			$node2 = 1;
-		}
-	}
+      # if parent undefined
+      if (!defined $node2)
+      {
+         warn "error: undefined parent in NCBI Taxonomy tree for node: $child_node\n";
+         # make parent root if parent undefined
+         $node2 = 1;
+      }
+   }
 }
 
 
