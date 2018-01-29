@@ -780,6 +780,28 @@ echo enter to continue
 read x
 
 
+
+# add some default paths to /etc/skel/.profile
+skel_paths_file=/tmp/skel.paths.$$
+
+cat > $skel_paths_file << SKEL_PROFILE
+
+# include /home/apps/bin in path 
+PATH="$PATH:/home/apps/bin"
+
+# add BLASTDB environmental variable and point to /home/databases/nr_nt 
+BLASTDB="/home/databases/nr_nt/"
+
+SKEL_PROFILE
+
+# add some paths to default .profile in /etc/skel
+sudo cat $skel_paths_file >> /etc/skel/.profile
+
+rm $skel_paths_file
+
+
+
+
 # setup PERL modules
 # need DBI perl module for some of the tax pipeline scripts
 echo "going to use cpan to install perl DBI module"
