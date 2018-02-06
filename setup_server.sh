@@ -245,9 +245,9 @@ alias lt='ls -ltr --color'        # sort by date, most recent last
 alias more='less'
 export PAGER=less
 
-export PERL5LIB=$PERL5LIB:~/bin
+export PERL5LIB="${PERL5LIB}:/home/apps/stenglein_lab_scripts"
 
-PATH="${PATH}:/home/apps/bin"
+PATH="${PATH}:/home/apps/bin:/home/apps/stenglein_lab_scripts"
 
 END_BASHRC
 )
@@ -256,6 +256,8 @@ echo "Adding the following lines to ~/.bashrc:"
 echo "$bashrc" 
 echo "$bashrc" >> ~/.bashrc
 
+echo "Adding the following lines to /etc/skel/.bashrc"
+sudo echo "$bashrc" >> /etc/skel/.bashrc
 
 # Setup .vimrc for my user
 # vim defaults
@@ -272,13 +274,6 @@ echo "Adding the following lines to ~/.vimrc:"
 echo "$vimrc" 
 echo "$vimrc" >> ~/.vimrc
 
-# setup ~/bin
-# do this manually  before running this script.
-## cd
-## mkdir bin
-## cd bin
-## clone scripts from github
-## git clone https://github.com/stenglein-lab/stenglein_lab_scripts.git .
 
 # to update local repo from remote: run: git fetch; git pull
 
@@ -288,6 +283,10 @@ sudo mkdir apps
 cd apps
 sudo chown -R `whoami` .
 mkdir bin
+
+# clone stenglein lab scripts dir from github
+cd /home/apps/
+git clone https://github.com/stenglein-lab/stenglein_lab_scripts.git 
 
 # download unzip
 sudo apt-get install -y zip unzip
@@ -787,7 +786,7 @@ skel_paths_file=/tmp/skel.paths.$$
 cat > $skel_paths_file << SKEL_PROFILE
 
 # include /home/apps/bin in path 
-PATH="$PATH:/home/apps/bin"
+PATH="$PATH:/home/apps/bin:/home/apps/stenglein_lab_scripts"
 
 # add BLASTDB environmental variable and point to /home/databases/nr_nt 
 BLASTDB="/home/databases/nr_nt/"
@@ -807,9 +806,9 @@ rm $skel_paths_file
 echo "going to use cpan to install perl DBI module"
 echo "enter to continue"
 read x
-cpan DBI
+sudo cpan DBI
 # install DBD-Mysql module...
-sudo apt-get install libdbd-mysql-perl
+sudo apt-get -y install libdbd-mysql-perl
 
 # setup pip3, to install snakemake,
 sudo apt-get update
