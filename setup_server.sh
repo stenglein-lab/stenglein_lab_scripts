@@ -516,6 +516,16 @@ cd hisat2-2.1.0
 cp hisat2* /home/apps/bin
 cd /home/apps
 
+# install gffread, used, e.g., to convert GFF->GTF format
+# see: http://ccb.jhu.edu/software/stringtie/gff.shtml
+echo install gffread
+cd /home/apps
+curl -O http://ccb.jhu.edu/software/stringtie/dl/gffread-0.9.12.Linux_x86_64.tar.gz
+tar xvf gffread-0.9.12.Linux_x86_64.tar.gz 
+cp gffread-0.9.12.Linux_x86_64/gffread bin
+cd /home/apps
+
+
 # install BLAST+
 echo install BLAST+
 cd /home/apps
