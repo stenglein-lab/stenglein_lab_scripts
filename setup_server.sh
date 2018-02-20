@@ -621,9 +621,9 @@ cd /home/apps
 # install stringtie
 echo install stringtie
 cd /home/apps
-wget http://ccb.jhu.edu/software/stringtie/dl/stringtie-1.3.3b.Linux_x86_64.tar.gz
-tar xvf stringtie-1.3.3b.Linux_x86_64.tar.gz
-cp stringtie-1.3.3b.Linux_x86_64/stringtie /home/apps/bin
+curl -O http://ccb.jhu.edu/software/stringtie/dl/stringtie-1.3.4c.Linux_x86_64.tar.gz
+tar xvf stringtie-1.3.4c.Linux_x86_64.tar.gz
+cp stringtie-1.3.4c.Linux_x86_64/stringtie bin
 cd /home/apps
 
 # install jmodeltest 2
