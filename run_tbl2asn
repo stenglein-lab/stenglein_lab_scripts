@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# script to create files in appropriate format for batch genbank submission
+# 
+# Mark Stenglein 4/21/2016
+#
+# 
+# step 1: export seqs in fasta and gff format from Geneious
+
+# first step: export
+# run create_gb_fsa to make fasta file w/ appropriate deflines
+./create_gb_fsa source_modifier_table_for_fsa_defline.txt collected_seqs.fa  > collected_seqs.fsa
+
+# run  gff_to_feature_table to make feature table
+./gff_to_feature_table collected_seqs.gff  > collected_seqs.tbl
+
+# now, run tbl2asn
+sbt_file=template.sbt
+mac.tbl2asn -p . -a s -V v -t $sbt_file -V b 

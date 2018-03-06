@@ -186,8 +186,14 @@ sudo apt-get install -y php libapache2-mod-php php-mcrypt php-mysql
 echo "going to install Webmin"
 echo "see: https://www.digitalocean.com/community/tutorials/how-to-install-webmin-on-ubuntu-16-04"
 echo "  "
-echo "going to edit /etc/apt/sources.list with vi.  Add the following line to the bottom of that file and save:"
+echo "going to edit /etc/apt/sources.list with vi.  Add the following lines to the bottom of that file and save:"
+echo " "
+echo "# for webmin"
 echo "deb http://download.webmin.com/download/repository sarge contrib" 
+echo " "
+echo "# for R packages
+echo "deb http://cran.rstudio.com/bin/linux/ubuntu xenial/"
+echo " "
 echo "<enter> to continue: "
 read x
 sudo vi /etc/apt/sources.list
@@ -292,11 +298,27 @@ git clone https://github.com/stenglein-lab/stenglein_lab_scripts.git
 sudo apt-get install -y zip unzip
 
 
+# get secure-apt key for installing R
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E084DAB9
+
 # install R
 echo "going to install R"
 echo "enter to continue"
 read x
+sudo apt-get update
 sudo apt-get install -y r-base
+# libcurl needed for some bioconductor packages...
+sudo apt-get install libcurl4-openssl-dev
+# libxml2 needed for some bioconductor packages...
+sudo apt-get install libxml2-dev
+# 
+sudo apt-get install libssl-dev
+
+# TODO: install specific R packages
+# packages needed for ballgown
+# install.packages(c("ballgown", "RSkittleBrewer", "genefilter", "dplry", "devtools"))
+# TODO: install bioconductor.  
+
 
 # install Java
 sudo apt-get update
@@ -903,6 +925,18 @@ cd /home/apps
 sudo apt-get update
 sudo apt-get -y install ruby-full
 
+
+# install mummer
+echo installing mummer
+cd /home/apps
+# TODO: check for new version...
+curl -O https://github.com/mummer4/mummer/releases/download/v4.0.0beta2/mummer-4.0.0beta2.tar.gz 
+tar xvf mummer-4.0.0beta2.tar.gz 
+cd mummer-4.0.0beta2
+./configure --prefix=/home/apps
+make
+make install
+cd /home/apps
 
 
 # database setups: see script setup_databases.sh
