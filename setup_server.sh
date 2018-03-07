@@ -930,7 +930,8 @@ sudo apt-get -y install ruby-full
 echo installing mummer
 cd /home/apps
 # TODO: check for new version...
-curl -O https://github.com/mummer4/mummer/releases/download/v4.0.0beta2/mummer-4.0.0beta2.tar.gz 
+# curl -L tells curl to follow redirects.  This github URL was redirecting to an AWS address...
+curl -L -O https://github.com/mummer4/mummer/releases/download/v4.0.0beta2/mummer-4.0.0beta2.tar.gz 
 tar xvf mummer-4.0.0beta2.tar.gz 
 cd mummer-4.0.0beta2
 ./configure --prefix=/home/apps
