@@ -939,6 +939,37 @@ make
 make install
 cd /home/apps
 
+# install circos & dependencies (a bunch of perl modules)
+# TODO: check for new version
+echo installing circos
+cd /home/apps
+curl -O http://circos.ca/distribution/circos-0.69-6.tgz
+tar xvf circos-0.69-6.tgz 
+cd circos-0.69-6/
+# install cpanminus for easier perl module installation
+sudo apt-get update
+sudo apt-get -y install cpanminus
+sudo cpanm Clone Config::General Font::TTF::Font GD GD::Polyline Math::Bezier Math::Round Math::VecStat 
+sudo cpanm Params::Validate Readonly Regexp::Common SVG Set::IntSpan Statistics::Basic Text::Format
+cd /home/apps
+
+# install bc (calculator)
+sudo apt-get update
+sudo apt-get -y install bc
+
+# install EMBOSS
+# this installs a bunch of programs to /usr/bin -> not wildly happy w/ that...
+# sudo apt-get update
+# sudo apt-get install -y emboss
+
+# install minimap2
+echo installing minimap2
+cd /home/apps
+git clone https://github.com/lh3/minimap2
+cd minimap2 
+make
+cp minimap2 /home/apps/bin
+cd /home/apps
 
 # database setups: see script setup_databases.sh
 
