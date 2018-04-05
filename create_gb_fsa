@@ -28,7 +28,7 @@ my $usage = <<USAGE;
 
   Usage: $0 [-h] <sequence_modifier_table_file> <fasta_file) 
 
-			-h   print this help message
+         -h   print this help message
 
          Reads fasta file from stdin and writes modified fasta to stdout
  
@@ -61,58 +61,78 @@ while (<$smt_fh>)
 {
    chomp;
 
-	if (/^#/) { next; } # ignore comment lines
+   if (/^#/) { next; } # ignore comment lines
 
-	my @data = split "\t";
+   my @data = split "\t";
 
-	# assume first line has column headers, which ought to be legit genbank sequence modifier 
-	# see: http://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html
-	if ($header_line)
-	{
-		@headers = @data;
-	   $header_line = 0;
-	}
-	else
-	{
-		#  example columns:
-      #  Sequence_ID	Collected_by	Collection_date	Country	Host	Tissue_type	Mol_type	isolation_source
-	   my $seq_id = shift @data; 
-		my $column_counter = 1;
-		foreach my $datum (@data)
+   # assume first line has column headers, which ought to be legit genbank sequence modifier 
+   # see: http://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html
+   if ($header_line)
+   {
+      @headers = @data;
+      $header_line = 0;
+   }
+   else
+   {
+      #  example columns:
+      #  Sequence_ID   Collected_by   Collection_date   Country   Host   Tissue_type   Mol_type   isolation_source
+      my $seq_id = shift @data; 
+		if ($seq_id =~ /(\S+)\s/)
 		{
-			# store table data indexed by seq_id and column header
-		   $matrix{$seq_id}{$headers[$column_counter]} = $datum;
-			$column_counter += 1;
+			# only match up to 1st whitespace in SMT sequence ID
+			# do this for bunyavirus submission 4.5.2018
+		   $seq_id = $1;
 		}
-	}
+		else
+		{
+		   warn "warning: couldn't match up to first whitespace character in SMT sequence id: $seq_id\n";
+		}
+      my $column_counter = 1;
+      foreach my $datum (@data)
+      {
+         # store table data indexed by seq_id and column header
+         $matrix{$seq_id}{$headers[$column_counter]} = $datum;
+         $column_counter += 1;
+      }
+   }
 }
 close ($smt_fh);
 
 # parse fasta file and append header lines (deflines) with info from source modifier table 
 while (<>)
 {
-	chomp;
+   chomp;
 
-	# header line
-	my $seq_id = undef;
+   # header line
+   my $seq_id = undef;
    if (/^>(\S+)/)
-	{
-	   $seq_id = $1;
-
-		# print out appended header
-		print ">$seq_id";
-		foreach my $header (@headers[1..$#headers])
+   {
+      $seq_id = $1;
+		if ($seq_id =~ /(\S+)_/)
 		{
-		   print " [$header=";
-			print "$matrix{$seq_id}{$header}]";
+			# match up to first _ character in fasta header
+			# doing this for bunyavirus segment submission - 4.5.2018
+		   $seq_id = $1;
 		}
-		print "\n";
-	}
-	else
-	{
-		# just print out fasta sequence data
-	   print "$_\n";
-	}
+		else
+		{
+		   warn "warning: couldn't match up to first _ character in fasta header\n$seq_id\n";
+		}
+
+      # print out appended header
+      print ">$seq_id";
+      foreach my $header (@headers[1..$#headers])
+      {
+         print " [$header=";
+         print "$matrix{$seq_id}{$header}]";
+      }
+      print "\n";
+   }
+   else
+   {
+      # just print out fasta sequence data
+      print "$_\n";
+   }
 
    
 }
