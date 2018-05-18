@@ -308,17 +308,35 @@ read x
 sudo apt-get update
 sudo apt-get install -y r-base
 # libcurl needed for some bioconductor packages...
-sudo apt-get install libcurl4-openssl-dev
+sudo apt-get install -y libcurl4-openssl-dev
 # libxml2 needed for some bioconductor packages...
-sudo apt-get install libxml2-dev
+sudo apt-get install -y libxml2-dev
 # 
-sudo apt-get install libssl-dev
+sudo apt-get install -y libssl-dev
 
-# TODO: install specific R packages
+# install bioconductor (does this do anything?) 
+sudo R -e 'source("https://bioconductor.org/biocLite.R"); biocLite()'
+
+# TODO: install specific R packages, and do so in a way so that they are available for all users
+sudo R -e 'install.packages("tidyverse")'
 # packages needed for ballgown
-# install.packages(c("ballgown", "RSkittleBrewer", "genefilter", "dplry", "devtools"))
-# TODO: install bioconductor.  
+sudo R -e 'source("https://bioconductor.org/biocLite.R"); biocLite(c("ballgown", "RSkittleBrewer", "genefilter", "dplry", "devtools"))'
+# TODO: deal w/ error message for dplyr ??
 
+
+
+# install RStudio Server:
+echo installing RStudio Server
+cd /home/apps
+sudo apt-get update
+# secure apt for this install 
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E084DAB9
+sudo apt-get install gdebi-core
+curl -O https://download2.rstudio.org/rstudio-server-1.1.447-amd64.deb
+sudo gdebi rstudio-server-1.1.447-amd64.deb
+# open up UFW for the RStudio port
+sudo ufw allow 8787
+cd /home/apps
 
 # install Java
 sudo apt-get update
