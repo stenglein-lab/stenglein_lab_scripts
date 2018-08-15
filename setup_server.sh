@@ -446,22 +446,6 @@ echo install htop
 sudo apt-get update
 sudo apt-get install -y htop
 
-# install biopython and numpy
-echo install biopython and numpy
-echo install numpy
-cd /home/apps
-curl -O https://pypi.python.org/packages/c0/3a/40967d9f5675fbb097ffec170f59c2ba19fc96373e73ad47c2cae9a30aed/numpy-1.13.1.zip
-unzip numpy-1.13.1.zip
-cd numpy-1.13.1
-python setup.py build
-sudo python setup.py install
-echo install biopython
-cd /home/apps
-git clone git://github.com/biopython/biopython.git
-cd biopython
-sudo python setup.py install
-cd /home/apps
-
 # install iotop 
 sudo apt-get install -y iotop -y
 
@@ -867,6 +851,9 @@ sudo apt-get -y install python3-pip
 # install snakemake via pip
 sudo pip3 install snakemake
 
+# install biopython via pip
+sudo pip3 install biopython
+
 # install hmmer, necessary for RepeatMasker
 echo install hmmer
 cd /home/apps
@@ -902,11 +889,10 @@ cpan Text::Soundex
 # install bcftools
 echo install bcftools
 cd /home/apps
-wget https://github.com/samtools/bcftools/releases/download/1.5/bcftools-1.5.tar.bz2
-bzip2 -d bcftools-1.5.tar.bz2
-tar xvf bcftools-1.5.tar
-cd bcftools-1.5
-./configure --prefix=/home/apps
+git clone git://github.com/samtools/htslib.git
+git clone git://github.com/samtools/bcftools.git
+cd bcftools/
+autoheader && autoconf && ./configure --prefix=/home/apps
 make
 make install
 cd /home/apps
@@ -988,6 +974,16 @@ cd minimap2
 make
 cp minimap2 /home/apps/bin
 cd /home/apps
+
+# install seqtk
+echo installing seqtk
+cd /home/apps
+git clone https://github.com/lh3/seqtk.git
+cd seqtk/
+make
+cp seqtk ../bin
+cd /home/apps
+
 
 # database setups: see script setup_databases.sh
 
