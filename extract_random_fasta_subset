@@ -162,16 +162,6 @@ if ($n == 1)
    $print_all_lines = 1;
 }
 
-# if we are going to output all the records, this is pretty simple...
-if ($print_all_lines)
-{
-   while (<$fastx_fh>)
-   {
-	   print "$_";
-	}
-	exit;
-}
-
 my $first_line = 1;
 my $another_record = 1;
 

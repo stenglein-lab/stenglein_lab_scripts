@@ -460,6 +460,12 @@ cd scripts
 cp * /home/apps/bin
 cd /home/apps
 
+# install albacore 
+echo install albacore
+cd /home/apps
+curl -O https://americas.oxfordnanoportal.com/software/analysis/ont_albacore-2.3.3-cp35-cp35m-manylinux1_x86_64.whl
+sudo -H pip3 install ont_albacore-2.3.3-cp35-cp35m-manylinux1_x86_64.whl
+
 
 # install cmake (SPAdes,etc dependency)
 echo "install cmake (SPAdes,etc dependency)"
@@ -606,7 +612,7 @@ sudo apt-get install -y libboost-all-dev
 # install diamond 
 echo install diamond 
 cd /home/apps
-wget http://github.com/bbuchfink/diamond/releases/download/v0.9.9/diamond-linux64.tar.gz
+curl -OL https://github.com/bbuchfink/diamond/releases/download/v0.9.23/diamond-linux64.tar.gz
 tar xzf diamond-linux64.tar.gz
 mv diamond bin 
 
@@ -685,9 +691,9 @@ cd /home/apps
 # install lofreq
 echo install lofreq
 cd /home/apps
-wget https://downloads.sourceforge.net/project/lofreq/lofreq_star-2.1.2_linux-x86-64.tgz
-tar xvf lofreq_star-2.1.2_linux-x86-64.tgz
-cp lofreq_star-2.1.2/bin/* /home/apps/bin
+curl -O -L https://github.com/CSB5/lofreq/raw/master/dist/lofreq_star-2.1.3.1_linux-x86-64.tgz
+tar xvf lofreq_star-2.1.3.1_linux-x86-64.tgz
+cp lofreq_star-2.1.3.1/bin/* /home/apps/bin
 cd /home/apps
 
 # install BEAGLE - used by MrBayes, BEAST, PhyML etc
@@ -983,6 +989,12 @@ cd seqtk/
 make
 cp seqtk ../bin
 cd /home/apps
+
+# install nextflow
+cd /home/apps
+curl -s https://get.nextflow.io | bash
+cp nextflow /home/apps/bin
+# TODO: install vim nextflow syntax highlighting: see: https://github.com/LukeGoodsell/nextflow-vim
 
 
 # database setups: see script setup_databases.sh
