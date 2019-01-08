@@ -8,8 +8,8 @@
 #
 # Mark Stenglein July 14, 2011
 
-print "this script does not support new illumina format fastq files.  needs to be updated.  Mark 10.18.2012\n";
-exit;
+# print "this script does not support new illumina format fastq files.  needs to be updated.  Mark 10.18.2012\n";
+# exit;
 
 my $usage = "merge_fastq_files <fastq_file_1> <fastq_file_2>\n";
 
@@ -23,53 +23,12 @@ open (my $out_fh, ">-") or die ("error, couldn't open stdout\n");
 my %headers = ();
 
 # first, store set of all headers in a hash
-while (<$r1_fh>)
-{
-   if (/@/)
-   {
-      chomp;
-      $headers{$_} = 1 ;
-   }
-}
-while (<$r2_fh>)
-{
-   if (/@/)
-   {
-      chomp;
-      $headers{$_} = 1 ;
-   }
-}
-close ($r1_fh);
-close ($r2_fh);
 
-# reads a fastq record from a fh (passed as arg)
-# returns the header, seq, qual_header, and $qual 
-# as the elements of a list returned
-# 
-# This assumes that sequence is only on one line
-sub read_fastq_record
-{
-   my $fh = $_[0];
-   my $header = <$fh>;
-   if (!defined $header) { return undef; } # no more records
-   chomp $header;
-   my $seq = <$fh>;
-   chomp $seq;
-   my $qual_header = <$fh>;
-   chomp $qual_header;
-   my $qual = <$fh>;
-   chomp $qual;
-   return ($header, $seq, $qual_header, $qual);
-}
 
 my $header = undef;
 my $seq = undef;
 my $qual_header = undef;
 my $qual = undef;
-
-
-open (my $r1_fh, "<", $r1_filename) or print ($usage) and die ($!);
-open (my $r2_fh, "<", $r2_filename) or print ($usage) and die ($!);
 
 my @fhs = ($r1_fh, $r2_fh);
 
@@ -78,10 +37,43 @@ foreach my $fh (@fhs)
    RECORD: while (($header, $seq, $qual_header, $qual) = read_fastq_record($fh))
    {
       last if (!defined($header));
+      # if we've already seen a record with this header...
       if (defined $headers{$header})
       {
-         delete $headers{$header};
+         # don't do anything - just increment counter
+         $headers{$header} += 1;
+      }
+      else
+      {
+         # note that we've encountered it for first time
+         $headers{$header} = 1;
          print "$header\n$seq\n$qual_header\n$qual\n";
       }
    }
+}
+
+# reads a fastq record from a fh (passed as arg)
+# returns the header, seq, qual_header, and $qual 
+# as the elements of a list returned
+# 
+# This assumes 4-line fastq format
+sub read_fastq_record
+{
+   my $fh = $_[0];
+   my $header = <$fh>;
+   if (!defined $header) { return undef; } # no more records
+   # make sure it's a fastq header
+   if (!($header =~ /^@/))
+   {
+      print "error reading fastq file.  Was expecting 4-line fastq format. read this:\n$header\n";
+      exit;
+   }
+   chomp $header;
+   my $seq = <$fh>;
+   chomp $seq;
+   my $qual_header = <$fh>;
+   chomp $qual_header;
+   my $qual = <$fh>;
+   chomp $qual;
+   return ($header, $seq, $qual_header, $qual);
 }
