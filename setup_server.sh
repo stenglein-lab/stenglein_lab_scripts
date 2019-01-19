@@ -366,9 +366,9 @@ cd databases
 # download bowtie2
 echo installing bowtie2
 cd /home/apps
-wget https://downloads.sourceforge.net/project/bowtie-bio/bowtie2/2.3.2/bowtie2-2.3.2-linux-x86_64.zip
-unzip bowtie2-2.3.2-linux-x86_64.zip
-cd bowtie2-2.3.2
+curl -OL  https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.3.4.3/bowtie2-2.3.4.3-linux-x86_64.zip
+unzip bowtie2-2.3.4.3-linux-x86_64
+cd bowtie2-2.3.4.3-linux-x86_64
 cp bowtie2* /home/apps/bin
 cd /home/apps
 
@@ -529,9 +529,9 @@ cd /home/apps
 echo install gmap - NOTE: gmap is frequently updated.  Should probably update this URL
 echo enter to continue
 read x
-wget http://research-pub.gene.com/gmap/src/gmap-gsnap-2017-06-20.tar.gz
-tar xvzf gmap-gsnap-2017-06-20.tar.gz
-cd gmap-2017-06-20
+curl -O http://research-pub.gene.com/gmap/src/gmap-gsnap-2018-07-04.tar.gz
+tar xvf gmap-gsnap-2018-07-04.tar.gz
+cd gmap-2018-07-04
 ./configure --prefix=/home/apps
 make
 make check
@@ -995,6 +995,11 @@ cd /home/apps
 curl -s https://get.nextflow.io | bash
 cp nextflow /home/apps/bin
 # TODO: install vim nextflow syntax highlighting: see: https://github.com/LukeGoodsell/nextflow-vim
+
+# install HTSeq
+cd /home/apps
+sudo apt-get install build-essential python2.7-dev python-numpy python-matplotlib python-pysam python-htseq
+
 
 
 # database setups: see script setup_databases.sh
