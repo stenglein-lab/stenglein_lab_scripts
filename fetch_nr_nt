@@ -20,7 +20,7 @@ echo "*** downloading and updating nr/nt files and indexes ***"
 echo "********************************************************"
 date
 
-num_subfiles=99 
+num_subfiles=200
 
 subfile_nums=(`seq -s " " -w 0 $num_subfiles`)
 

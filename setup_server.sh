@@ -317,26 +317,39 @@ sudo apt-get install -y libssl-dev
 # install bioconductor (does this do anything?) 
 sudo R -e 'source("https://bioconductor.org/biocLite.R"); biocLite()'
 
+# Possible TODO: Have users install R packages in a user-specific way?
 # TODO: install specific R packages, and do so in a way so that they are available for all users
 sudo R -e 'install.packages("tidyverse")'
 # packages needed for ballgown
 sudo R -e 'source("https://bioconductor.org/biocLite.R"); biocLite(c("ballgown", "RSkittleBrewer", "genefilter", "dplry", "devtools"))'
-# TODO: deal w/ error message for dplyr ??
 
 
 
 # install RStudio Server:
+# NOTE: should check that this is latest version
 echo installing RStudio Server
 cd /home/apps
 sudo apt-get update
 # secure apt for this install 
 sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E084DAB9
 sudo apt-get install gdebi-core
-curl -O https://download2.rstudio.org/rstudio-server-1.1.447-amd64.deb
-sudo gdebi rstudio-server-1.1.447-amd64.deb
+curl -O https://download2.rstudio.org/rstudio-server-1.1.463-amd64.deb
+sudo gdebi rstudio-server-1.1.463-amd64.deb
 # open up UFW for the RStudio port
 sudo ufw allow 8787
 cd /home/apps
+
+# install Shiny Server
+# NOTE: check that this is latest version
+cd /home/apps
+# install shiny itself
+sudo R -e 'install.packages("shiny")'
+curl -O https://download3.rstudio.org/ubuntu-14.04/x86_64/shiny-server-1.5.9.923-amd64.deb
+sudo gdebi shiny-server-1.5.9.923-amd64.deb
+# open up firewall for the shiny server prt
+sudo ufw allow 3838
+# this configures shiny server to allow individual users to setup their own shiny server apps 
+sudo /opt/shiny-server/bin/deploy-example user-dirs
 
 # install Java
 sudo apt-get update
@@ -612,7 +625,7 @@ sudo apt-get install -y libboost-all-dev
 # install diamond 
 echo install diamond 
 cd /home/apps
-curl -OL https://github.com/bbuchfink/diamond/releases/download/v0.9.23/diamond-linux64.tar.gz
+curl -OL https://github.com/bbuchfink/diamond/releases/download/v0.9.24/diamond-linux64.tar.gz
 tar xzf diamond-linux64.tar.gz
 mv diamond bin 
 
@@ -1000,11 +1013,34 @@ cp nextflow /home/apps/bin
 cd /home/apps
 sudo apt-get install build-essential python2.7-dev python-numpy python-matplotlib python-pysam python-htseq
 
+# TODO: setup shiny server and install shiny, tidyverse, other packages...
+
+# this library needed to compile ggforce in R
+sudo apt-get install libudunits2-dev
+
+
+# seqtk
+cd /home/apps
+git clone https://github.com/lh3/seqtk.git
+cd seqtk
+make
+cp seqtk ../bin
+cd /home/apps
+
+# install tbl2asn
+cd /home/apps
+curl -OL ftp://ftp.ncbi.nih.gov/toolbox/ncbi_tools/converters/by_program/tbl2asn/linux64.tbl2asn.gz
+gunzip  linux64.tbl2asn.gz
+chmod +x linux64.tbl2asn
+mv linux64.tbl2asn bin
+cd bin
+ln linux64.tbl2asn tbl2asn
+cd /home/apps
 
 
 # database setups: see script setup_databases.sh
 
-# TODO: make this a snakemake or make
+# TODO: make this a snakemake or make?
 
 # SysAdmin TODO:
 # MegaCli (RAID analysis)
