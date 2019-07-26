@@ -1,0 +1,105 @@
+#!/usr/bin/perl
+
+# this script reads and outputs the ratio of reads mapped 
+# in a forward direction to a reverse direction from SAM format data
+#
+# This is calculated from the 0x10 flag in the sam format output
+#
+# Mark Stenglein Jul 25, 2018 
+#
+
+use strict;
+use Getopt::Long;
+
+my $usage = <<USAGE;
+
+This script reads and outputs the ratio of reads mapped 
+in a forward direction to reads mapped in reverse direction 
+from SAM format data.
+
+This is calculated from the 0x10 flag in the sam format output.  
+According to the sam format spec, this flag indicates:
+
+0x10 SEQ being reverse complemented
+
+For each alignment if this flag is not set then the read is tallied
+as being aligned in the forward direction.  Otherwise, it's tallied
+as being aligned in the reverse direction.  
+
+This script doesn't accunt for paired reads.  In other words,
+this script will work for mapping of single-end data or just the 
+first read of a pair.  Could be updated to accomodate that [TODO].
+
+Reads from stdin 
+Outputs to stdout
+
+Mark Stenglein Jul 25, 2018  
+
+ usage: $0  [h] <sam_file>
+
+   -h                print this message
+
+USAGE
+
+my $print_usage = 0;
+
+if (scalar @ARGV == 0) { print $usage; exit; }
+
+GetOptions ("h" => \$print_usage); 
+
+if ($print_usage) { print $usage; exit; }
+
+my $sam_file = shift or print $usage and die($!);
+open (my $sam_fh, "<", $sam_file) or print $usage and die("error: couldn't open sam file $sam_file\n$!\n");
+
+my $flag = 0;
+my @fields = ();
+
+my $rc_count = 0;
+my $fwd_count = 0;
+
+my %refseqs = ();
+
+LINE: while (<$sam_fh>)
+{
+   chomp;
+
+   if (/^@/)
+   {
+      # header lines - just output them
+      # print "$_\n";
+      next;
+   }
+   
+   # split line into tab-delimited components
+   @fields = split "\t";
+
+   if (scalar @fields != 11)
+   {
+      die ("error: was expecting 11 tab-delimited columns in sam format.  line: $_\n");
+   }
+
+   my $ref_seq = $fields[2];
+
+   # get value for flags field
+   my $flag = $fields[1];
+
+   # skip unmapped queries (0x4)
+   if ($flag & 4) { next FLAG; }
+
+   # count # of rc-mapped or non-rc-mapped queries
+   # TODO: could keep track of this separately for each reference sequence
+   if ($flag & 16) { $ref_seqs{$ref_seq}{rc_count} += 1; }
+   else            { $ref_seqs{$ref_seq}{fwd_count} += 1; }
+
+}
+
+foreach my $ref_seq (keys %ref_seqs)
+{
+   my $fwd_cout = $ref_seqs{$ref_seq}{fwd_count};
+   my $rev_cout = $ref_seqs{$ref_seq}{rev_count};
+   my $ratio = $fwd_count / ($rc_count + $fwd_count);
+   print "$sam_file\t";
+   print "$ref_seq\t";
+   printf "%0.3f\n", $ratio;
+}
