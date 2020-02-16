@@ -1,7 +1,6 @@
 #!/bin/bash
 #
-# Setup a Stenglein lab analysis server
-#
+# Setup a Stenglein lab analysis server #
 # This is based on How I setup the cctsi-103 server
 # goal: create a re-usable script for server setup
 #
@@ -392,7 +391,9 @@ sudo apt-get install libtbb-dev -y
 echo "installing cutadapt.  Note, won't install to /home/apps/bin"
 echo enter to continue
 read x
-sudo pip install --upgrade cutadapt
+# sudo pip install --upgrade cutadapt
+sudo python3 -m pip install cutadapt
+
 
 # install FastQC
 echo "going to install FastQC.  Note: may be a newer version: check website: https://www.bioinformatics.babraham.ac.uk/projects/fastqc"
@@ -494,6 +495,38 @@ cd SPAdes-3.10.1
 PREFIX=/home/apps ./spades_compile.sh
 cd /home/apps
 
+# install unicycler
+echo install unicycler
+cd /home/apps
+git clone https://github.com/rrwick/Unicycler.git
+cd Unicycler
+# doing this didn't work because python couldn't find appropriate packages in /home/apps/lib
+#    python3 setup.py install --prefix=/home/apps/
+# so do with sudo: global instlal
+sudo python3 setup.py install 
+cd /home/apps
+
+# install miniasm
+echo install miniasm
+cd /home/apps
+git clone https://github.com/lh3/miniasm  && (cd miniasm  && make)
+cp miniasm/miniasm bin
+cd /home/apps
+
+# install racon
+echo install racon
+cd /home/apps
+git clone --recursive https://github.com/isovic/racon.git racon
+cd racon
+mkdir build
+cd build/
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
+cp bin/racon /home/apps/bin
+cd /home/apps
+
+
+
 # install bwa
 echo install bwa
 cd /home/apps
@@ -542,9 +575,9 @@ cd /home/apps
 echo install gmap - NOTE: gmap is frequently updated.  Should probably update this URL
 echo enter to continue
 read x
-curl -O http://research-pub.gene.com/gmap/src/gmap-gsnap-2018-07-04.tar.gz
-tar xvf gmap-gsnap-2018-07-04.tar.gz
-cd gmap-2018-07-04
+curl -OL http://research-pub.gene.com/gmap/src/gmap-gsnap-2019-09-12.tar.gz
+tar xvf gmap-gsnap-2019-09-12.tar.gz
+cd gmap-2019-09-12
 ./configure --prefix=/home/apps
 make
 make check
@@ -686,6 +719,14 @@ wget https://github.com/ddarriba/jmodeltest2/files/157117/jmodeltest-2.1.10.tar.
 tar xvf jmodeltest-2.1.10.tar.gz
 # TODO: possible to install to /home/apps/bin?  
 
+# install modeltest-ng
+echo install modeltest-ng
+cd /home/apps
+curl -OL https://github.com/ddarriba/modeltest/files/3790700/modeltest-ng-0.1.6-static-linux64.tar.gz
+tar xvf modeltest-ng-0.1.6-static-linux64.tar.gz 
+mv modeltest-ng-static bin
+
+
 ## # install khmer using pip
 ## echo install khmer using pip
 ## pip install --upgrade pip
@@ -745,6 +786,16 @@ cd phyml-3.3.20170530/
 ./autogen.sh 
 make
 cp phyml-mpi /home/apps/bin
+cd /home/apps
+
+# install raxml-ng
+echo install raxml-ng
+cd /home/apps
+mkdir -p raxml-ng
+cd raxml-ng
+curl -OL https://github.com/amkozlov/raxml-ng/releases/download/0.9.0/raxml-ng_v0.9.0_linux_x86_64.zip
+unzip raxml-ng_v0.9.0_linux_x86_64.zip
+cp raxml-ng ../bin
 cd /home/apps
 
 # install quast
@@ -839,7 +890,7 @@ skel_paths_file=/tmp/skel.paths.$$
 cat > $skel_paths_file << SKEL_PROFILE
 
 # include /home/apps/bin in path 
-PATH="$PATH:/home/apps/bin:/home/apps/stenglein_lab_scripts"
+PATH="\$PATH:/home/apps/bin:/home/apps/stenglein_lab_scripts"
 
 # add BLASTDB environmental variable and point to /home/databases/nr_nt 
 BLASTDB="/home/databases/nr_nt/"
@@ -1037,6 +1088,15 @@ cd bin
 ln linux64.tbl2asn tbl2asn
 cd /home/apps
 
+
+# install giraf
+cd /home/apps
+curl -OL http://www.cs.cmu.edu/~ckingsf/software/giraf/giraf-1.02.zip
+unzip giraf-1.02.zip 
+cd giraf/bin
+cp giraf_linux64 /home/apps/bin
+cp run_mrbayes.sh /home/apps/bin
+cd /home/apps
 
 # database setups: see script setup_databases.sh
 
