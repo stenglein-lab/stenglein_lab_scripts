@@ -1,0 +1,315 @@
+#!/usr/bin/perl
+
+# this script parses a SAM output file
+# and outputs a tabulation of all the 
+# single base mismatches in mapped reads relative
+# to the reference sequence
+#
+# Mark Stenglein April 6, 2020 
+#
+
+use strict;
+use Getopt::Long;
+## use Data::Dumper;
+
+my $phred_offset = 33;
+my $min_qscore = 30;
+
+my $usage = <<USAGE;
+
+This script parses a SAM output file and outputs a tabulation of all the 
+single base mismatches in mapped reads relative to the reference sequence.
+
+Insertions and deletions are not considered.
+
+Reads from stdin and writes to stdout.
+
+Mark Stenglein April 6, 2020  
+
+ usage: $0  [h] -f <fasta_file> <sam_file>
+
+   -h                print this message
+
+   -q min_qscore     For a mismatch to be tabulated, the read's base must have at least this 
+                     high a quality (phred) score.  E.g., -q 20.   Defaut = $min_qscore
+
+   -po phred_offset  The Phred offset.  Default = $phred_offset
+
+   -f <fasta_file>   A fasta file containing the reference sequence(s) aligned to
+
+   <sam_file>        A SAM file containing reads aligned to the reference sequence(s)
+
+USAGE
+
+my $print_usage = 0;
+my $output_unmapped = 0;
+my $fasta_filename = undef;
+
+if (scalar @ARGV == 0 and -t STDIN) { print $usage; exit; }
+
+GetOptions ("h" => \$print_usage, 
+            "q=i" => \$min_qscore,
+            "f=s" => \$fasta_filename,
+            "po=i" => \$phred_offset); 
+
+if ($print_usage) { print $usage; exit; }
+
+if (!defined $fasta_filename) {
+   die("error: must specify a FASTA file\n$usage\n");
+}
+
+# parse fasta file into memory
+my %fasta_seqs = fasta2hash($fasta_filename);
+
+
+# initialize variables
+my $flag = 0;
+my @fields = ();
+my $seq_name = undef;
+my $seq_length = undef;
+my %mismatches = ();
+my %observed_bases = ();
+
+my $total_match_mismatch_count = 0;
+
+# these are the expected typical bases - don't tabulate mismatches involveing other
+my @expected_bases = qw (A C G T);
+# map can turn an array into a hash 
+my %expected_bases_hash = map { $_ => 1 } @expected_bases;
+
+# read sam input
+while (<>)
+{
+   chomp;
+
+   if (/^@/)
+   {
+      # don't do anything w/ header lines
+      next;
+   }
+   
+   # split non-header lines into tab-delimited components
+   @fields = split "\t";
+
+   # is this an unmapped query?  Check bitwise flags.
+   my $flag = $fields[1];
+
+   # don't output unmapped queries
+   # see SAM format spec.
+   if ($flag & 4) { next; }
+   
+   # aligned-to reference seq
+   my $ref_seq_name = $fields[2];
+   my $ref_seq = $fasta_seqs{$ref_seq_name};
+   if (!defined $ref_seq)
+   {
+      die ("error: could not find sequence of reference sequence $ref_seq_name in fasta file $fasta_filename\n");
+   }
+
+   # parse other info from SAM fields
+   my $start_pos = $fields[3];
+   my $cigar = $fields[5];
+   my $read_seq = $fields[9];
+   my $read_qual = $fields[10];
+
+   # leftmost aligned base in the ref seq
+   my $position_in_reference = $start_pos;
+   my $position_in_read = 1;
+
+   # iterate through the CIGAR codes for this alignment record and:
+   # 
+   # - if a match or mismatch, check if match or mismatch
+   #    - if mismatch, if quality high enough, then tabulate the mismatch
+   # - for soft trimming and indels, ignore, but keep track of coordinates in ref seq and read
+   # 
+
+   # cigar parsing code copied from: http://davetang.org/muse/2011/01/28/perl-and-sam/
+   while ($cigar !~ /^$/)
+   {
+      if ($cigar =~ /^([0-9]+[MIDS])/)
+      {
+         my $cigar_part = $1;
+
+         # if a match or mismatch (non indel or trim)
+         if ($cigar_part =~ /(\d+)M/)
+         {
+            my $number_matches_or_mismatches = $1;
+
+            # interate through each position in the string of matches or mismatches and determine if a match or mismatch 
+            for (my $i = 0; $i < $number_matches_or_mismatches-1; $i++)
+            {
+	       # base in reference sequence
+               my $ref_base = substr($ref_seq, $position_in_reference, 1);
+	       # base in the read
+               my $read_base = substr($read_seq, $position_in_read, 1);
+	       # the ASCII qual score
+               my $base_quality = substr($read_qual, $position_in_read, 1);
+	       # convert it to a numeric qual score using phred offset
+               my $base_q_score = ord($base_quality) - $phred_offset;
+
+	       # keep track of how many times each base is observed in reads
+	       $observed_bases{$read_base} += 1;
+
+               # do the ref and read mis-match?
+               if ($ref_base ne $read_base)
+               {
+		  # if this base's quality score is greater than threshold
+                  if ($base_q_score > $min_qscore)
+                  {
+                     # tabulate the mismatches 
+                     $mismatches{$ref_base}{$read_base} += 1;
+    
+                     # is either the reference or the read's base outside of what would be expected?
+                     if (!$expected_bases_hash{$ref_base} or !$expected_bases_hash{$read_base})
+                     {
+                        warn ("warning: unexpected base: read: $fields[0] ref:$ref_base read: $read_base base q: $base_q_score ref_pos: $position_in_reference read_pos: $position_in_read\n");
+                     }
+                  }
+               }
+               else
+               {
+                 # warn ("info: matched base: ref:$ref_base read: $read_base ref_pos: $position_in_reference read_pos: $position_in_read\n");
+               }
+    
+                # increment counters
+                $position_in_reference += 1;
+                $position_in_read += 1;
+		$total_match_mismatch_count += 1;
+             }
+          } 
+          # if an insertion (in read), do nothing
+          elsif ($cigar_part =~ /(\d+)I/)
+          {
+             # increment read counter by the size of the insertion
+             $position_in_read += $1;
+          } 
+          # if a deletion (in read), simply jump ahead in ref
+          elsif ($cigar_part =~ /(\d+)D/)
+          {
+             # increment refseq counter by the size of the deletion
+             $position_in_reference += $1;
+          } 
+          elsif ($cigar_part =~ /(\d+)S/)
+          {
+             # soft clipping occurs only at ends of sequence
+             # and the reported start position (field[3]), is 
+             # the leftmost *aligned* base
+	     # so we don't need to increment the ref seq counter
+             # but we do need to increment the read counter by the size of the trimming
+             $position_in_read += $1;
+          } 
+          $cigar =~ s/$cigar_part//;
+       } 
+       else 
+       {
+          die "Unexpected cigar: $cigar\n";
+       }
+    }
+}
+    
+
+# print Dumper(%mismatches);
+
+# output tabulation of particular mismatch types
+foreach my $ref_base (@expected_bases) 
+{
+   foreach my $read_base (@expected_bases)
+   {
+      # don't output non-mismatches (when read and ref bases match)
+      if ($read_base ne $ref_base)
+      {
+         my $tally = 0;
+         if ($mismatches{$ref_base}{$read_base})
+         {
+            $tally = $mismatches{$ref_base}{$read_base};
+         }
+         my $observations = $observed_bases{$ref_base};
+         print "$ref_base\t$read_base\t$tally\t$observations\n";
+      }
+   }
+}
+
+
+
+
+# 
+# fasta helper functions below from Dan Sloan:
+# https://github.com/dbsloan/perl_modules/blob/master/sloan.pm
+# 
+
+###############################################################################
+#BEGIN fasta2hash
+#A subroutine that takes a fasta file and returns a hash with headers as keys and sequences as values
+
+sub fasta2hash {
+   my $fasta = shift @_ or die ("\nERROR: No fasta file name provided to fasta2hash\n\n");
+   my %fastaHash = arrays2hash (get_fasta_names_and_seqs($fasta));
+   return %fastaHash;
+}
+
+###############################################################
+#BEGIN arrays2hash
+#a subroutine to take two arrays of equal size and convert them to a hash
+#keys taken from first array, values from the second.
+#Note that arrays must be passed by reference (\@array1, \@array2)
+
+sub arrays2hash {
+   use strict;
+   use warnings;
+
+   (my $keyarray, my $valuearray) = @_;
+   if (scalar(@$keyarray) != scalar(@$valuearray)) {
+      die "Arrays differ in size: Mismatched number of keys and values"; 
+   }
+   
+   my %newhash = ( );
+   
+   @newhash{ @$keyarray } = @$valuearray;
+
+
+   return (%newhash);
+
+}
+
+###############################################################################
+#get_fasta_names_and_seqs
+#returns matching arrays of fasta heders and seqs given a fastname filename
+
+sub get_fasta_names_and_seqs {
+   use strict;
+   use warnings;
+
+   my ($inputfilename) = @_;
+   my @fasta_names = ();
+   my @fasta_seqs= ();
+
+         
+   unless ( open(FILEDATA, $inputfilename) ) {
+      print STDERR "Cannot open file \"$inputfilename\"\n\n"; #print error message
+      exit; #exit the program
+   }   
+
+   my @filedata = <FILEDATA>; #Read the lines of the file into an array
+   close FILEDATA;
+   
+   my $seq_count = 0; #this will be used to keep track of the number of sequences
+   foreach my $line (@filedata){
+      if ($line =~ /^>/) { #if the line is a header line (begins with ">")...
+         if ($line =~ /^>.*[\w]+/){
+            my $partialLine = substr ($&, 1);
+            push (@fasta_names, $partialLine); #add that line to an array of fasta names
+            push (@fasta_seqs, ""); #and add a new blank element to an array of sequences
+            ++$seq_count; #also increment our counter which keeps track of sequence number
+         }
+      }else { #if the line's not blank or a header, add it to the current sequence 
+         $fasta_seqs[$seq_count-1] .= $line;
+      }
+   }
+   for (my $i = 0; $i < scalar (@fasta_seqs); ++$i){
+      $fasta_seqs[$i] =~s/\s//g;
+   }
+   
+   return (\@fasta_names, \@fasta_seqs);
+
+}
+
