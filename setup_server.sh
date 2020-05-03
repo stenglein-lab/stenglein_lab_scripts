@@ -539,16 +539,23 @@ cd /home/apps
 echo install parallel
 sudo apt-get install -y parallel
 
-# install samtools
+# install samtools & bcftools
 echo install samtools
 cd /home/apps
-wget https://github.com/samtools/samtools/releases/download/1.5/samtools-1.5.tar.bz2
-bunzip2 samtools-1.5.tar.bz2
-tar xvf samtools-1.5.tar
-cd samtools-1.5/
+curl -OL https://github.com/samtools/samtools/releases/download/1.10/samtools-1.10.tar.bz2
+tar xvf samtools-1.10.tar 
+cd samtools-1.10/
 ./configure --prefix=/home/apps
-make
-make install
+make; make install
+
+# bcftools
+echo install bcftools
+cd /home/apps
+curl -OL https://github.com/samtools/bcftools/releases/download/1.10.2/bcftools-1.10.2.tar.bz2
+tar xvf bcftools-1.10.2.tar.bz2 
+cd bcftools-1.10.2/
+./configure --prefix=/home/apps
+make; make install
 cd /home/apps
 
 # install BBTools
