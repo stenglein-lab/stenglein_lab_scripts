@@ -2,89 +2,64 @@
 
 # create several indexes from nr and nt databases
 # Mark Stenglein 8.6.2013  
+#
+# This script builds the indexes in a dated sub-directory
+# and then copies them back to main directory, overwriting 
+# old versions of the indexes.
+#
+# NOTE that this could possibly interfere w/ running 
+# diamond, gsnapl, hisat, etc. processes
+#
+#
 
 # build database indexes
 echo "*************************************************"
 echo "*** building indexes from nr and nt databases ***"
 echo "*************************************************"
 
-start_dir=`pwd`
-
-# download nr & nt dbs in fasta format 
-rm -f nt.gz nr.gz
-wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
-wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
-mv nt.gz nt_fasta.gz
-gunzip nt.fasta.gz 
-
-mv nr.gz nr.fasta.gz
-gunzip nr.fasta.gz 
-
-### old way of creating nr/nt fasta files: from the blast dbs
-### # first, create fasta files from blast dbs
-### echo " convert nt database to fasta "
-### blastdbcmd -entry all -db nt -out nt.fasta -target_only
-### echo "convert nr database to fasta "
-### blastdbcmd -entry all -dbtype prot -db nr -out nr.fasta -target_only
-
 # build new indices in a separate directory
+# create it and then cd there
 
 today=`date +%Y_%m_%d`
 index_dir=indexes_${today}
 mkdir $index_dir
-
-mv nr.fasta $index_dir
-mv nt.fasta $index_dir
-
 cd $index_dir
 
-### rapsearch not installing smoothly on newer servers - use diamond aligner instead ...  
-### echo "creating rapsearch index of nr database"
-### date
-### prerapsearch -d nr.fasta -n nr_rap_index
+# download nr & nt dbs in fasta format 
+wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
+gunzip nt.gz 
+gunzip nr.gz 
 
-echo "creating GSNAP index of nt database"
-date
-gmap_build -D . -d nt_gsnap nt.fasta -L
+# rename to have .fasta extension
+mv nt nt.fasta
+mv nr nr.fasta
 
 echo "creating diamond index of nr database"
 date
-diamond makedb -p 32 --in nr.fasta -d nr
 
-## echo "creating HISAT/Bowtie2 index of nt database"
-## date
-## hisat-build nt.fasta nt
+echo "downloading taxonomy accession -> taxid mapping information from NCBI"
+rm -f prot.accession2taxid.FULL.gz*
+rm -f taxdmp.zip*
+rm -f names.dmp*
+rm -f nodes.dmp*
+curl -OL ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/prot.accession2taxid.FULL.gz
+curl -OL ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip
+unzip taxdmp.zip
+rm -f taxdmp.zip
 
-# TODO: build centrifuge index of nt?
+diamond makedb --in nr.fasta -d nr --taxonmap prot.accession2taxid.FULL.gz --taxonnames names.dmp --taxonnodes nodes.dmp --threads 32
+mv nr.dmnd ..
 
-# copy files back to main directory
-# NOTE that this might interfere w/ running 
-# rapsearch, gsnapl, or hisat processes
-
-echo "moving indexes"
-date
 
 # fasta files
 mv nr.fasta ..
 mv nt.fasta ..
-# rapsearch nr index
-mv nr_rap_index* ..
-# diamond nr index
-mv nr.dmnd ..
-# gsnap nt index
-# delete the old one
-rm -rf ../nt_gsnap  
-# move the new one into place
-mv -f nt_gsnap ..
-## # hisat nt index
-## mv nt*.bt2l ..
-## mv nt.sources ..
-
-cd $start_dir
-# fetch/update NCBI taxdb so that BLAST programs can be more taxonomically aware...
-# see: https://www.ncbi.nlm.nih.gov/books/NBK279680/
-curl -O ftp://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz
-tar xvf taxdb.tar.gz
 
 echo "done rebuilding indexes"
 date
+
+echo "done rebuilding indexes" > indexes_built.txt
+date >> indexes_built.txt
+
+cp indexes_built.txt ..

@@ -20,7 +20,7 @@ echo "*** downloading and updating nr/nt files and indexes ***"
 echo "********************************************************"
 date
 
-num_subfiles=200
+num_subfiles=99
 
 subfile_nums=(`seq -s " " -w 0 $num_subfiles`)
 
@@ -34,8 +34,6 @@ do
    nr_file="nr.${subfile}.tar.gz"
    nt_files+=($nt_file)
    nr_files+=($nr_file)
-   # echo $nt_file
-   # echo $nr_file
 done
 
 echo "starting download and unpacking of files"
