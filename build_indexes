@@ -25,19 +25,26 @@ index_dir=indexes_${today}
 mkdir $index_dir
 cd $index_dir
 
-# download nr & nt dbs in fasta format 
+# download nr protein db in fasta format
 wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nr.gz
-wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
-gunzip nt.gz 
 gunzip nr.gz 
-
 # rename to have .fasta extension
-mv nt nt.fasta
 mv nr nr.fasta
+# double check removed
+rm nr.gz
+
+# download nt nucleotide db in fasta format
+# don't need
+# wget ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz
+# gunzip nt.gz 
+# mv nt nt.fasta
+# double check removed
+# rm nt.gz
 
 echo "creating diamond index of nr database"
 date
 
+# download taxonomy info from NCBI so that diamond database will be taxonomically aware... 
 echo "downloading taxonomy accession -> taxid mapping information from NCBI"
 rm -f prot.accession2taxid.FULL.gz*
 rm -f taxdmp.zip*
@@ -46,15 +53,21 @@ rm -f nodes.dmp*
 curl -OL ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/prot.accession2taxid.FULL.gz
 curl -OL ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip
 unzip taxdmp.zip
+# mv *.dmp ..
 rm -f taxdmp.zip
 
 diamond makedb --in nr.fasta -d nr --taxonmap prot.accession2taxid.FULL.gz --taxonnames names.dmp --taxonnodes nodes.dmp --threads 32
 mv nr.dmnd ..
+rm -f nr.fasta 
+
+## echo "creating HISAT/Bowtie2 index of nt database"
+## date
+## hisat-build nt.fasta nt
+## # hisat nt index
+## mv nt*.bt2l ..
+## mv nt.sources ..
 
 
-# fasta files
-mv nr.fasta ..
-mv nt.fasta ..
 
 echo "done rebuilding indexes"
 date
@@ -62,4 +75,4 @@ date
 echo "done rebuilding indexes" > indexes_built.txt
 date >> indexes_built.txt
 
-cp indexes_built.txt ..
+ln -s indexes_built.txt /home/databases/nr_nt/indexes_built.txt
