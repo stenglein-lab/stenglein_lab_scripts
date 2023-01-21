@@ -1,0 +1,156 @@
+#!/usr/bin/env perl
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+
+# default parameter values
+my $output_dir = "concatenated_fastq";
+my $fastq_regex = ".(fastq|fq)(.gz)?\$";
+my $suffix_regex = "_S[0-9]+_R[12]_.*.fastq.gz\$";
+my $r1_regex = "_R1_";
+my $r2_regex = "_R2_";
+
+my $usage = <<USAGE;
+
+  This script identifies and concatenates datasets from 
+  samples that have been sequenced multiple times and 
+  for which multiple fastq files (or file pairs) exist.
+
+  This script will identify datasets corresponding to 
+  the same sample based on fastq file name prefixes,
+  with invariant text at the end of fastq file names
+  stripped off (see -r option below).
+
+  The script will search in one or more directories
+  for fastq files and identify sets with shared prefixes.
+  Shared fastq (fastq from the same starting samples) will
+  be concatanated and output to the directory specified by 
+  the -o option.
+
+  If only one fastq exists for a particular sample, the file
+  will just be copied.
+
+  Mark Stenglein,  3/23/2021
+
+  Usage: $0 [-h] [options]  <one or more directories in which to search for fastq>
+
+   [-h]          Print this message
+
+   options:
+
+   [-f regex]    A regular expression that will identify fastq files.
+                 Any filename producing a match to this regex will
+                 be considered a fastq file.
+
+                 default = $fastq_regex
+
+   [-r regex]    A regular expression containing mostly invariant text that
+                 will be stripped of the end of file names.  
+
+                 All of the text in filenames preceeding this regex will be
+                 used to identify samples. 
+
+                 default = $suffix_regex
+
+   [-r1 regex]   A regular expression containing the text that identifies read 1 files.
+
+                 default = $r1_regex
+
+   [-r2 regex]   A regular expression containing the text that identifies read 2 files.
+
+                 default = $r2_regex
+
+   [-o out_dir]  Directory into which concatenated files will be output.
+
+                 default = $output_dir
+              
+
+   example usage:
+
+   $0 -o runs_1_to_3_fastq  run_1 run_2 run_3 
+
+USAGE
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+GetOptions ("h" => \$print_usage,
+            "-f=s" => \$fastq_regex,
+            "-r=s" => \$suffix_regex,
+            "-o=s" => \$output_dir );
+
+# main input arguments are a list of directories to look in for fastq
+my @dirs = @ARGV;
+my %samples = ();
+
+# read the file names in the dirs
+foreach my $dir_path (@dirs)
+{
+   opendir (my $dir, $dir_path) or die "Cannot open directory: $!";
+   my @files = readdir ($dir);
+   foreach my $filename (@files)
+   {
+      if ($filename =~ /(.*)$suffix_regex/)
+      { 
+         my $sample = $1;
+         my $full_filename = $dir_path."/".$filename;
+	 push @{$samples{$sample}}, $full_filename;
+	 # warn "$sample\t$full_filename\n";
+      } 
+   }
+   closedir ($dir);
+}
+
+# make new output directory if needed
+my $mkdir_command = "mkdir -p $output_dir";
+print "$mkdir_command\n";
+
+foreach my $sample (sort keys %samples)
+{
+   my @fastqs = @{$samples{$sample}};
+   # warn "fastqs @fastqs\n";
+   my @r1_fq = ();
+   my @r2_fq = ();
+   foreach my $fastq (@fastqs) 
+   {
+      # figure out what's read1 and what's read2
+      if ($fastq =~ /$r1_regex/)
+      {
+         push @r1_fq, $fastq;
+      }
+      elsif ($fastq =~ /$r2_regex/)
+      {
+         push @r2_fq, $fastq;
+      }
+      else 
+      {
+         die ("error: couldn't identify read1/2 information in filename: $fastq\n");
+      }
+   }
+   
+   # sorted file names so that paired reads will stay in sync
+   my @r1_sorted = sort @r1_fq;
+   my @r2_sorted = sort @r2_fq;
+
+   # concatenate fastq from same samples: R1
+   my $new_filename = $output_dir."/".$sample."_R1.fastq.gz";
+   # note that can just use cat to concatenate .gz files
+   my $cat_cmd = "cat ". join(" ", @r1_sorted) . " > " . $new_filename;
+   print "$cat_cmd\n";
+   
+   # concatenate fastq from same samples: R2
+   # if there are any R2 files (might be single end)
+   if (scalar @r2_sorted > 0)
+   {
+      my $new_filename = $output_dir."/".$sample."_R2.fastq.gz";
+      my $cat_cmd = "cat ". join(" ", @r2_sorted) . " > " . $new_filename;
+      print "$cat_cmd\n";
+   }
+
+}
+
+
+
+
+
