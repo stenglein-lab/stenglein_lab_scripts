@@ -4,7 +4,7 @@
 # Mark Stenglein 8.6.2013  
 
 # create a list of nr and nt files
-# assume the dbs will go up to 99 sub-files - may have to up this in the future
+# assume the dbs will go up to 199 sub-files - may have to up this in the future
 # if change is req'd will have to make sure numbering is ok, w/ regards to 0 padding...
 
 # have to do this cd command in case this script is run as a cron job
@@ -20,7 +20,7 @@ echo "*** downloading and updating nr/nt files and indexes ***"
 echo "********************************************************"
 date
 
-num_subfiles=200
+num_subfiles=99 
 
 subfile_nums=(`seq -s " " -w 0 $num_subfiles`)
 
@@ -44,7 +44,8 @@ date
 echo "fetching nr files from NCBI FTP server"
 for f in ${nr_files[@]}
 do
-   wget -q -N ftp://ftp.ncbi.nih.gov/blast/db/$f
+   # wget -q -N ftp://ftp.ncbi.nih.gov/blast/db/$f
+   wget -N ftp://ftp.ncbi.nih.gov/blast/db/$f
 done
 
 echo "unpacking nr files"
@@ -56,7 +57,8 @@ done
 echo "fetching nt files from NCBI FTP server"
 for f in ${nt_files[@]}
 do
-   wget -q -N ftp://ftp.ncbi.nih.gov/blast/db/$f
+   # wget -q -N ftp://ftp.ncbi.nih.gov/blast/db/$f
+   wget -N ftp://ftp.ncbi.nih.gov/blast/db/$f
 done
 
 echo "unpacking nt files"

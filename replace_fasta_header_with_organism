@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+
+# >gi|261414359|gb|ACX83588.1| putative serine protease [Astrovirus MLB2]
+
+while (<>)
+{
+   if (/>gi\|(\d*)\|.*\|.*\| (.*) \[(.*?)\]/)
+   {
+      my $prot = $2;
+      $prot =~ tr/ /_/;
+      my $orgn = $3;
+      $orgn =~ tr/ /_/;
+      my $gi = $1;
+      $gi =~ tr/ /_/;
+      print ">$prot";
+      print "_";
+      print "$orgn";
+      print "_";
+      print "$gi\n";
+   }
+   elsif (/>gi\|(\d*)\|.*\|.*\|(\w*) /)
+   {
+      my $orgn = $2;
+      my $gi = $1;
+      print ">$orgn";
+      print "_";
+      print "$gi\n";
+   }
+   elsif (/gi\|(\d*)\|>* \[(.*?)\]$/)
+   {
+      my $orgn = $2;
+      my $gi = $1;
+      print ">$orgn";
+      print "_";
+      print "$gi\n";
+   }
+   elsif (/\[(.*?)\]$/)
+   {
+      my $orgn = $1;
+		$orgn =~ s/ /_/g;
+
+		my $accession = undef;
+
+		if (/^>(\S+)/)
+		{
+		   $accession = $1
+		}
+
+		if ($accession)
+		{
+         print ">$orgn";
+			print "_$accession\n";
+		}
+		else
+		{
+         print ">$orgn\n";
+		}
+   }
+   elsif (/\[(.*?)\]$/)
+   {
+      my $orgn = $1;
+		$orgn =~ s/ /_/g;
+      print ">$orgn\n";
+   }
+   else
+   {
+      print $_;
+   }
+}
