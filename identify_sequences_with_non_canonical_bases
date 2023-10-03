@@ -1,0 +1,49 @@
+#!/usr/bin/env perl
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+
+my $non_canonical_bases_regex = "[^ACGTU-]";
+
+my $usage = <<USAGE;
+
+  This script sifts through FASTA nucleotide sequences and outputs sequences 
+  that contain non-canonical bases.
+
+  Non-canonical bases are defined by a regular expression (default: $non_canonical_bases_regex)
+  that can be overridden using the command line parameter -r.
+
+  Reads from stdin and writes to stdout.
+
+  Mark Stenglein,  10/3/2023
+
+  Usage: $0 [-h] 
+
+   [-h]          print this message
+
+   [r regex]     regular expression defining "non-canonical" bases.
+                 default: $non_canonical_bases_regex
+
+USAGE
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+GetOptions ("h" => \$print_usage,
+            "r=s" => \$non_canonical_bases_regex);
+
+my $id = undef;
+while (<>)
+{
+  chomp;
+  if (/^>(.*)/)
+  {
+     $id = $1;
+  }
+  elsif (/$non_canonical_bases_regex/)
+  {
+     print "non-canonical bases in sequence:\n$id\n$_\n";
+  }
+}
+
