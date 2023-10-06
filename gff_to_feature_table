@@ -1,174 +1,144 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
+use Getopt::Long;
 
 my $last_seq_id = 0;
 my $fetching_seq = 0;
 my $seq = undef;
 my $seq_id = undef;
-my %seqs = ();
+my %seq_lengths = ();
 
+my $print_usage = 0;
 
+my $usage = <<USAGE;
+
+  This script converts GFF formatted annotation into a NCBI "Feature Table" 
+  for submission of sequences to Genbank.
+
+  It expects GFF3 formatted input (http://gmod.org/wiki/GFF3#GFF3_Annotation_Section)
+  This GFF3 file should not contain sequences. 
+
+  It's been tested with GFF3 files exported from Geneious v2023.2 (without sequences).
+
+  Reads from stdin and writes to stdout.
+
+  Mark Stenglein,  3/6/2018
+
+  Usage: $0 [-h] 
+
+   [-h]          print this message
+
+USAGE
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+GetOptions ("h" => \$print_usage);
+
+# read stdin
 while (<>)
 {
   chomp;
+
+  # try to parse out sequence length info, if present
   if (/^##/)
   {
-     if (/##DNA (.*)$/)
+     # read in sequence length if present (this information is present in Geneious-exported GFF3)
+     if (/^##sequence-region/)
      {
-        $fetching_seq = 1;
-        $seq_id = $1;
-        next;
-     }
-     elsif (/##end-DNA/)
-     {
-        $seqs{$seq_id} = $seq;
-        $seq = undef;
-        $fetching_seq = 0;
-     }
-     if ($fetching_seq)
-     {
-        if (/^##(.*)$/)
-        {
-           $seq .= $1;
-        }
+	my @fields = split "\t";
+        my $seq_id = $fields[1];
+        my $seq_length = $fields[3];
+        $seq_lengths{$seq_id} = $seq_length;
      }
    }
    else
    {
       chomp;
-      my @fields = split;
+      # GFF is tab-delimited, split into fields
+      my @fields = split "\t";
       my $seq_id = $fields[0];
       my $type = $fields[2];
       my $start = $fields[3];
       my $end = $fields[4];
       my $strand = $fields[6];
       my $name = $fields[8];
-		my $partial=0;
+      my $partial=0;
 
       if ($strand eq '-')
       {
          die "script doesn't support -strand features yet\nline: $_\n";
       }
 
-		# first line for a entry for a new sequence
+      # first line for a entry for a new sequence
       if ($seq_id ne $last_seq_id)
       {
-			$last_seq_id = $seq_id;
+         $last_seq_id = $seq_id;
          print ">Feature $seq_id\n";
       }
 
-      if ($name =~ /Name=(.+)/)
+      # match any text up to a ; character
+      if ($name =~ /Name=([^;]+)/)
       {
          $name = $1;
-			$name =~ s/_CDS//;
-			if ($name =~ /partial/)
-			{
-			   $partial = 1;
-			}
+	 # strip "CDS" or "_CDS" from name
+         $name =~ s/_CDS//;
+         $name =~ s/ CDS//;
+	 # if name contains 
+         if ($name =~ /partial/)
+         {
+            $partial = 1;
+         }
       }
-		else
-		{
-		   die "error: couldn't parse feature name from $name\nline: $_\n";
-		}
+      else
+      {
+         die "error: couldn't parse feature name from $name\nline: $_\n";
+      }
 
-		# we will handle CDS and mat_peptide feature types
-		if ($type eq "CDS")
-		{
-			my $seq_length = length($seqs{$seq_id});
-			if ($start == 1) { print "<".$start."\t"; }
-			else             { print  "$start\t"; }
-			if ($end == $seq_length) { print $end.">\t"; }
-			else             { print  "$end\t"; }
+      # handle CDS or mat_peptide feature types
+      if (($type eq "CDS") or ($type eq "mat_peptide"))
+      {
+         my $seq_length = length($seq_lengths{$seq_id});
+
+	 # handle CDS that extend outside of sequence (
+	 # CDS that start at beginning of sequence (position 1)
+         if ($start == 1) 
+	 { 
+	    print "<".$start."\t"; 
+	 }
+         else             
+	 { 
+	    # CDS starts within sequence
+	    print  "$start\t"; 
+	 }
+	 # CDS that extend past end of sequence 
+	 # (only possible to know if sequence length defined)
+         if (defined $seq_length and ($end == $seq_length))
+	 { 
+	    print $end.">\t"; 
+	 }
+         else             
+	 { 
+	    # CDS ends within sequence
+	    print  "$end\t"; 
+	 }
+
+	 # type of feature
          print "$type\n";
-			print "\t\t\tproduct\t$name\n";
-			### print "\t\t\tnote\tputative\n";
-			if ($partial) 
-			{ 
-			   print "\t\t\tnote\tpartial\n";
-			}
-		}
-		elsif ($type eq "mat_peptide")
-		{
-			my $seq_length = length($seqs{$seq_id});
-			if ($start == 1) { print "<".$start."\t"; }
-			else             { print  "$start\t"; }
-			if ($end == $seq_length) { print $end.">\t"; }
-			else             { print  "$end\t"; }
-         print "$type\n";
-			print "\t\t\tproduct\t$name\n";
-		}
-		else
-		{
-		   warn "unsupported feature type: $type\nline: $_\n";
-		}
+
+	 # name of product
+         print "\t\t\tproduct\t$name\n";
+
+	 # if the CDS name includes "partial" make a note of that
+         if ($partial) 
+         { 
+            print "\t\t\tnote\tpartial\n";
+         }
+      }
+      else
+      {
+         warn "unsupported feature type: $type\nline: $_\n";
+      }
    }
 }
 
-#  >Feature Seq_snake32_L6
-#  1  19 misc_feature
-#           note  putative terminal sequence
-#  6824  627   gene
-#           gene  L
-#  6824  627   CDS
-#           product  L protein
-#           note  L polymerase
-#  119   475   gene
-#           gene  Z
-#  119   475   CDS
-#           product  Z protein
-#           note  Z protein
-
-
-# mat_peptide     55..399
-                # /gene="TCR1A"
-                # /product="T-cell receptor alpha chain"# 
-
-# >Feature Seq1
-# <1    >1050    gene
-#                         gene          ATH1
-# <1    1009    CDS
-#                         product       acid trehalase
-#                         product       Athlp
-#                         codon_start   2
-# <1    >1050    mRNA
-#                         product       acid trehalase
-# 
-# >Feature Seq2
-# 2626  2590    tRNA
-# 2570  2535
-#                         product       tRNA-Phe
-# 
-# >Feature Seq3
-# 1080  1210  CDS
-# 1275  1315
-#                         product       actin
-#                         note          alternatively spliced
-# 1055  1210  mRNA
-# 1275  1340
-#                         product       actin
-# 1055  1340  gene
-#                         gene          ACT
-# 1055  1079  5'UTR
-# 1316  1340  3'UTR
-# 
-# >Feature Seq 1
-# 
-# ##gff-version 3
-# ##source-version geneious 6.1.6
-# ReptileBornaFullAssembly	Geneious	misc_feature	2415	2423	.	+	.	Name=Splice Donor;created by=User
-# ReptileBornaFullAssembly	Geneious	promoter	23	38	.	+	.	Name=TIS1;Transcription Initiation Site 1=;created by=User
-# ReptileBornaFullAssembly	Geneious	promoter	1878	1893	.	+	.	Name=TIS3;Transcription Initiation Site 3=;created by=User
-# ReptileBornaFullAssembly	Geneious	promoter	1172	1183	.	+	.	Name=TIS2;Transcription Initiation Site 2=;created by=User
-# ReptileBornaFullAssembly	Geneious	terminator	4506	4514	.	.	.	Name=Terminator 3;created by=User;modified by=User
-# ReptileBornaFullAssembly	Geneious	terminator	1878	1885	.	.	.	Name=Terminator 2;created by=User
-# ReptileBornaFullAssembly	Geneious	terminator	1190	1196	.	.	.	Name=Terminator Site 1;created by=User;modified by=User
-# ReptileBornaFullAssembly	Geneious	terminator	8825	8831	.	.	.	Name=Terminator 4;created by=User;modified by=User
-# ReptileBornaFullAssembly	Geneious	CDS	2401	2418	.	+	.	Name=Polymerase (L);created by=User;modified by=User;ID=YdCkrKoF0+i9JhvaYuJhMTBaBPs.1404776709059.0
-# ReptileBornaFullAssembly	Geneious	CDS	3704	8827	.	+	.	Name=Polymerase (L);created by=User;modified by=User;ID=YdCkrKoF0+i9JhvaYuJhMTBaBPs.1404776709059.0
-# ReptileBornaFullAssembly	Geneious	CDS	2244	3743	.	+	.	Name=Glycoprotein (G);created by=User
-# ReptileBornaFullAssembly	Geneious	CDS	47	1180	.	+	.	Name=Nucleocapsid (N);modified by=User
-# ReptileBornaFullAssembly	Geneious	CDS	1254	1880	.	+	.	Name=Phosphoprotein (P);created by=User;modified by=User
-# ReptileBornaFullAssembly	Geneious	CDS	1901	2329	.	+	.	Name=Matrix (M);created by=User
-# ReptileBornaFullAssembly	Geneious	CDS	1205	1474	.	+	.	Name=(X);modified by=User
-# 
