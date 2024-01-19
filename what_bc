@@ -1,22 +1,72 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+
+my $index_regex = ':([ACGTN\+]{6,21})';
+
+my $usage = <<USAGE;
+
+  This script parses through an Illumina-style fastq file and 
+  tabulates the index sequences from the fastq header lines and
+  outputs a table of the observed index sequences and their counts.
+
+  This can be useful, for instance, to see what indexes are being
+  binned into the Undetermined fastq file during demultiplexing.
+
+  Index sequences are matched using the regex controlled by the -r 
+  option
+
+  Mark Stenglein,  1/19/2024
+
+  Usage: $0 [-h] 
+
+   [-h]          print this message
+
+   [-r regex]    match index sequences using this regular expression.
+                 default: $index_regex
+
+                 note that this regex should contain a single pair of 
+                 parentheses for grouping the actual index 
+
+USAGE
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+GetOptions ("h"   => \$print_usage,
+            "r=s" => \$index_regex);
 
 my %bcs = undef;
 
+# read through the fastq a line at a time
 while (<>)
 {
-   if (/:([ACGTN\+]{17})/)
-   # if (/:([ACGT]{14})/)
-   # if (/:([ACGTN]{7})/)
-   # if (/#([ACGTN]{6})/)
+   # match the index sequence
+   if (/$index_regex/)
    {
+      # match might occur on 3rd line of fastq records 
+      # sometimes a duplicate of the first line 
+      # that start with + instead of @
+      #
+      # ignore those 3rd line duplicates
+      my $first_character = substr($_, 0, 1);
+      if ($first_character eq "+")
+      {
+         next;
+      }
+
+      # iterate count for this barcode 
       $bcs{$1} += 1;
-      # print "$1\n";
    }
 }
 
+
+# print a tabulation of the observed index sequences and their counts, 
+# in descending order
 foreach my $bc (sort {$bcs{$b} <=> $bcs{$a}} keys %bcs)
 {
    print "$bc\t$bcs{$bc}\n";
 }
+
