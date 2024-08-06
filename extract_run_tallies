@@ -1,0 +1,56 @@
+#!/usr/bin/env perl
+
+use strict;
+use Getopt::Long;
+
+my $print_usage = 0;
+
+my $usage = <<USAGE;
+
+  This script tabulates Illumina flow cell serial numbers from mapped reads
+  in a SAM file
+
+  Reads from stdin writes to stdout
+
+  Mark Stenglein,  10/5/2023
+
+  Usage: $0 [-h] [-r regex]
+
+   [-h]          print this message
+
+   [-r regex]    optional regex to search for in refseq names
+
+USAGE
+
+if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
+
+my $regex = undef;
+
+GetOptions ("h" => \$print_usage,
+            "r=s" => \$regex);
+
+my %run_tally = ();
+
+while (<>)
+{
+   chomp;
+   my @fields = split "\t";
+   my $read = $fields[0];
+   my @read_parts = split ":", $read;
+   my $run = $read_parts[2];
+   my $refseq = $fields[2];
+
+   if (defined $regex and ($refseq =~ /$regex/))
+   {
+      $run_tally{$run} += 1;
+   }
+   elsif (!defined $regex)
+   {
+      $run_tally{$run} += 1;
+   }
+}
+
+foreach my $run (keys %run_tally)
+{
+   print "$run\t$run_tally{$run}\n";
+}
