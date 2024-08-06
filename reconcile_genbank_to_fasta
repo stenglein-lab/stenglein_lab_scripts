@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 
-
 use strict;
 use Getopt::Long;
 
@@ -14,6 +13,9 @@ my $usage = <<USAGE;
  
  It assumes that the fasta records are a subset of the 
  genbank records 
+
+ When parsing fasta file headers, it will only use text in 
+ the fasta header line up to the first whitespace.
 
  Outputs to stdout
 
@@ -43,9 +45,10 @@ my %fasta_headers = ();
 while (<$fasta_fh>)
 {
    chomp;
-   if (/^>/)
+   if (/^>(\S+)\s+/)
    {
-      my $fasta_header = $_;
+
+      my $fasta_header = $1;
       $fasta_header =~ s/>//;
       $fasta_headers{$fasta_header} = 1;
    }  
@@ -57,7 +60,7 @@ my $printing_lines = 0;
 while (<$genbank_fh>)
 {
    chomp;
-	# Is this RegEx sufficient?
+   # Is this RegEx sufficient?
    if (/^LOCUS\s+(\S+)/)
    {
       $printing_lines = 0;
