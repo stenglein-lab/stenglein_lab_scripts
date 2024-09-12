@@ -40,34 +40,69 @@ my $usage = <<USAGE;
   Mark Stenglein,  10/22/2014
 
 
-  Usage: $0 [-h] 
+  Usage: $0 [-h] [-p prefix]
 
-   [-h]          print this message
+   -h          print this message
+
+   -p prefix   prepend sequence names with this prefix.  default: don't do this.
+
+   -r          reverse fastify: take a fasta input and output sequence IDs and sequences 
+               as 2 tab-delimited columns
 
 USAGE
 
 if ((scalar @ARGV == 0) and -t STDIN) { print $usage and exit; }
 
-GetOptions ("h" => \$print_usage);
+my $prefix = undef;
+my $reverse_fastify = 0;
 
+GetOptions ("h" => \$print_usage,
+            "p=s" => \$prefix, 
+	    "r" => \$reverse_fastify);
+
+if ($print_usage) { print $usage and exit; }
 
 my $line_counter = 1;
 
 while (<>)
 {
    chomp;
-	my @fields = split "\t";
-	if (scalar @fields == 1)
-	{
-      print ">$line_counter\n$_\n";
-	}
-	elsif (scalar @fields == 2)
-	{
-      print ">$fields[0]\n$fields[1]\n";
-	}
-	else
-	{
-	   die "unexpected format on line $line_counter: $_\n";
-	}
+   if (!$reverse_fastify) {
+      my @fields = split "\t";
+      if (scalar @fields == 1)
+      {
+         print ">";
+         if (defined $prefix)
+         {
+   	 print "$prefix";
+         }
+         print "$line_counter\n$_\n";
+      }
+      elsif (scalar @fields == 2)
+      {
+         print ">$fields[0]\n$fields[1]\n";
+      }
+      else
+      {
+         die "unexpected format on line $line_counter: $_\n";
+      }
+   } else {
+      # doing reverse of usual 
+      if (/>(.*)/)
+      {
+	 # finish previous record (newline)
+	 if ($line_counter > 1) { print "\n"; }
+
+         # fasta header
+	 print "$1\t";
+      } else
+      {
+         print "$_";
+      }
+   }
+
    $line_counter++;
 }
+
+# if doing reverse need to finish last record
+if ($reverse_fastify and $line_counter > 1) { print "\n"; }
