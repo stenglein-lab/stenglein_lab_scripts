@@ -1,0 +1,21 @@
+#!/bin/bash 
+
+# This script takes a fasta format alignment (via stdin) 
+# and outputs the same fasta sequences in unaligned form.
+#
+# basically it just strips - characters out of sequences in 
+# fasta format
+#
+# reads from stdin and writes to stdout
+#
+# MDS 8/28/2025
+# 
+
+
+# the sed doesn't change lines that begin with >
+# for other lines, remove "-" characters
+# for the input redirection meaning, see:
+# https://stackoverflow.com/questions/6980090/how-to-read-from-a-file-or-standard-input-in-bash
+
+sed '/^>/! s/-//g' < "${1:-/dev/stdin}"
+
