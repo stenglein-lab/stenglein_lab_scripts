@@ -302,9 +302,11 @@ country_names = [
 # a command to get rid of "special" characters in sequence names  
 # e.g. replace whitespaces with underscores and delete commas
 def cleanup_name(name):
+  # TODO: would be better to define allowed characters are replace everything else
   name = name.replace(" ", "_")
   name = name.replace(",", "")
   name = name.replace(":", "")
+  name = name.replace(";", "")
   name = name.replace('"', "")
   name = name.replace('(', "")
   name = name.replace(')', "")
