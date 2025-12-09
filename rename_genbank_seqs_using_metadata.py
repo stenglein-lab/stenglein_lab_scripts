@@ -24,7 +24,7 @@ description=
  
   The extent to which this works for individual sequences reflects the quality of that sequence's metadata.
 
-  By default, the new name will consist of:
+  The new name will consist of:
 
   [optional_prefix]_[country_if_present]_[host_if_present]_[year_if_present]_accession
 """)
