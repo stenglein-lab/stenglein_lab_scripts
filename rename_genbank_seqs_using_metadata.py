@@ -11,6 +11,7 @@
 import sys
 import argparse
 import re
+import pprint
 
 from Bio import SeqIO
 
@@ -26,14 +27,16 @@ description=
 
   The new name will consist of:
 
-  [optional_prefix]_[country_if_present]_[host_if_present]_[year_if_present]_accession
+  [optional_prefix]_[organism_if_present]_[country_if_present]_[host_if_present]_[year_if_present]_accession
 """)
 
 parser.add_argument("genbank_file",    help="Input genbank file")
+parser.add_argument("-f", "--fasta",   help="Output sequences in fasta instead of genbank format", action="store_true")
 parser.add_argument("-p", "--prefix",  help="Optional prefix text to being each name with")
 parser.add_argument("-y", "--year",    help="Add year to name if present in metadata.  Parsed from collection_data metadata field.", action="store_true")
 parser.add_argument("-c", "--country", help="Add country to name if present in metadata. Parsed from geo_loc_name or country (preferred) metadata fields.", action="store_true")
-parser.add_argument("-o", "--host",    help="Add host organism to name if present in metadata.  Parsed from host metadata field.", action="store_true")
+parser.add_argument("-ho", "--host",     help="Add host organism to name if present in metadata.  Parsed from host metadata field.", action="store_true")
+parser.add_argument("-o",  "--organism", help="Add organism to name if present in metadata.  Parsed from organism qualifier in source metadata field.", action="store_true")
 
 # Parse command-line arguments
 args = parser.parse_args()
@@ -328,6 +331,7 @@ with open(args.genbank_file) as handle:
     geo_loc_name    = None
     collection_date = None
     host            = None
+    organism        = None
 
     # iterate through sequences in genbank file
     for feature in record.features:
@@ -362,6 +366,10 @@ with open(args.genbank_file) as handle:
           if qk == "host":
              host = qualifier_value[0]
 
+          # look for organism metadata
+          if qk == "organism":
+             organism = qualifier_value[0]
+
     # print (geo_loc_name, file=sys.stderr)
     # print (collection_date, file=sys.stderr)
 
@@ -371,6 +379,11 @@ with open(args.genbank_file) as handle:
     # optional prefix passed in via command-line parameter
     if args.prefix:
       new_name = args.prefix + "_"
+
+    # organism 
+    if organism:
+      if args.organism:
+         new_name = new_name + organism + "_"
 
     # location metadata
     if geo_loc_name:
@@ -410,8 +423,17 @@ with open(args.genbank_file) as handle:
     # overwrite existing name with new name
     record.name = new_name
 
-    # output renamed genbank record to stdout
-    SeqIO.write(record, sys.stdout, "genbank")
+    # output, to fasta (-f) or genbank (default)
+    if (args.fasta): 
+       # output renamed fasta record to stdout
+       # overwrite id field, which is how fasta seqs are named
+       # and zero out description, which will be otherwise included in fasta header line
+       record.id          = new_name
+       record.description = ""
+       SeqIO.write(record, sys.stdout, "fasta")
+    else:
+       # output renamed genbank record to stdout
+       SeqIO.write(record, sys.stdout, "genbank")
 
 
 
