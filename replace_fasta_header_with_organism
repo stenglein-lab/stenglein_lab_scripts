@@ -37,29 +37,29 @@ while (<>)
    elsif (/\[(.*?)\]$/)
    {
       my $orgn = $1;
-		$orgn =~ s/ /_/g;
+      $orgn =~ s/ /_/g;
 
-		my $accession = undef;
+      my $accession = undef;
 
-		if (/^>(\S+)/)
-		{
-		   $accession = $1
-		}
+      if (/^>(\S+)/)
+      {
+         $accession = $1
+      }
 
-		if ($accession)
-		{
+      if ($accession)
+      {
          print ">$orgn";
-			print "_$accession\n";
-		}
-		else
-		{
+         print "_$accession\n";
+      }
+      else
+      {
          print ">$orgn\n";
-		}
+      }
    }
    elsif (/\[(.*?)\]$/)
    {
       my $orgn = $1;
-		$orgn =~ s/ /_/g;
+      $orgn =~ s/ /_/g;
       print ">$orgn\n";
    }
    else
