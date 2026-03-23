@@ -311,10 +311,12 @@ def cleanup_name(name):
   name = name.replace(":", "")
   name = name.replace(";", "")
   name = name.replace('"', "")
+  name = name.replace('-', "")
   name = name.replace('(', "")
   name = name.replace(')', "")
   name = name.replace('/', "")
   name = name.replace('.', "")
+  name = name.replace('__', "_")
   return name  
 
 
