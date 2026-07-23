@@ -27,7 +27,7 @@ description=
 
   The new name will consist of:
 
-  [optional_prefix]_[organism_if_present]_[country_if_present]_[host_if_present]_[year_if_present]_accession
+  [optional_prefix]_[organism_if_present]_[strain_or_isolate_if_present]_[country_if_present]_[host_if_present]_[year_if_present]_accession
 """)
 
 parser.add_argument("genbank_file",    help="Input genbank file")
@@ -36,7 +36,9 @@ parser.add_argument("-p", "--prefix",  help="Optional prefix text to being each 
 parser.add_argument("-y", "--year",    help="Add year to name if present in metadata.  Parsed from collection_data metadata field.", action="store_true")
 parser.add_argument("-c", "--country", help="Add country to name if present in metadata. Parsed from geo_loc_name or country (preferred) metadata fields.", action="store_true")
 parser.add_argument("-ho", "--host",     help="Add host organism to name if present in metadata.  Parsed from host metadata field.", action="store_true")
+parser.add_argument("-s",  "--strain",   help="Add strain or isolate if present in metadata.  Parsed from strain or isolate (if no strain) metadata fields.", action="store_true")
 parser.add_argument("-o",  "--organism", help="Add organism to name if present in metadata.  Parsed from organism qualifier in source metadata field.", action="store_true")
+parser.add_argument("-sa", "--skip_accession", help="do not include the sequence accession in new name.  Default is to include.", action="store_true", default = False)
 
 # Parse command-line arguments
 args = parser.parse_args()
@@ -317,6 +319,8 @@ def cleanup_name(name):
   name = name.replace('/', "")
   name = name.replace('.', "")
   name = name.replace('__', "_")
+  # get rid of any possible trailing underscores from name creation
+  name = re.sub(r'_$', '', name)
   return name  
 
 
@@ -334,6 +338,7 @@ with open(args.genbank_file) as handle:
     collection_date = None
     host            = None
     organism        = None
+    strain_isolate  = None
 
     # iterate through sequences in genbank file
     for feature in record.features:
@@ -387,6 +392,11 @@ with open(args.genbank_file) as handle:
       if args.organism:
          new_name = new_name + organism + "_"
 
+    # strain or isolate 
+    if strain_isolate:
+      if args.strain:
+         new_name = new_name + strain_isolate + "_"
+
     # location metadata
     if geo_loc_name:
 
@@ -416,8 +426,10 @@ with open(args.genbank_file) as handle:
       if args.host:
          new_name = new_name + host + "_"
 
+    # accession 
     if accession:
-      new_name = new_name + accession
+      if not args.skip_accession:
+         new_name = new_name + accession
 
     # run through function to remove special characters and spaces
     new_name = cleanup_name(new_name)
